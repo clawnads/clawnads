@@ -1,0 +1,1448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <title>Clawnads Sim</title>
+  <link rel="icon" type="image/svg+xml" href="/clawnads-favicon-white.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/admin-nav.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #09090b;
+      overflow: hidden;
+      font-family: 'Inter', -apple-system, sans-serif;
+      color: #fafafa;
+    }
+    /* Use dvh where supported for correct mobile height (accounts for browser chrome) */
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      position: relative;
+      touch-action: none; /* prevent pull-to-refresh, pinch zoom on the canvas */
+    }
+
+    /* CSS2DRenderer label styles */
+    .agent-label {
+      font-family: 'Inter', sans-serif;
+      font-size: 10px;
+      font-weight: 500;
+      color: #fafafa;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.5);
+      pointer-events: none;
+      white-space: nowrap;
+      user-select: none;
+    }
+    .zone-label {
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: #22c55e;
+      opacity: 0.85;
+      text-shadow: 0 0 10px rgba(34,197,94,0.4), 0 1px 3px rgba(0,0,0,0.8);
+      pointer-events: none;
+      white-space: nowrap;
+      user-select: none;
+    }
+
+    /* Bubble wrapper — positioned by CSS2DRenderer (gets inline transform).
+       Must not have any CSS transform or it conflicts with renderer positioning. */
+    .bubble-wrapper {
+      pointer-events: none;
+      user-select: none;
+    }
+    /* Activity bubble (inner div) — animated freely without clobbering CSS2D positioning */
+    .activity-bubble {
+      font-family: 'Inter', sans-serif;
+      font-size: 9px;
+      font-weight: 500;
+      color: #e4e4e7;
+      background: rgba(24, 24, 27, 0.92);
+      border: 1px solid rgba(63, 63, 70, 0.5);
+      border-radius: 10px;
+      padding: 4px 8px;
+      pointer-events: none;
+      white-space: nowrap;
+      user-select: none;
+      max-width: 160px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transform-origin: center bottom;
+      will-change: transform, opacity;
+    }
+    /* Pop in from below with bounce */
+    .activity-bubble.bubble-enter {
+      animation: bubbleEnter 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+    /* Gentle float while visible */
+    .activity-bubble.bubble-bob {
+      animation: bubbleBob 2.5s ease-in-out infinite;
+      opacity: 0.85;
+    }
+    /* Gentle fade + drift away on dismiss */
+    .activity-bubble.bubble-exit {
+      animation: bubbleExit 1.2s ease-in-out forwards;
+    }
+    @keyframes bubbleEnter {
+      0% { transform: scale(0) translateY(8px); opacity: 0; }
+      50% { transform: scale(1.12) translateY(-2px); opacity: 1; }
+      100% { transform: scale(1) translateY(0); opacity: 1; }
+    }
+    @keyframes bubbleBob {
+      0%, 100% { transform: translateY(0); opacity: 0.85; }
+      50% { transform: translateY(-3px); opacity: 0.95; }
+    }
+    @keyframes bubbleExit {
+      0% { transform: scale(1) translateY(0); opacity: 0.85; }
+      40% { transform: scale(0.95) translateY(-2px); opacity: 0.5; }
+      100% { transform: scale(0.85) translateY(-6px); opacity: 0; }
+    }
+
+    /* Admin nav */
+    .admin-nav {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .admin-nav-logo img { height: 18px; width: auto; opacity: 0.4; transition: opacity 0.2s; display: block; }
+    .admin-nav-logo:hover img { opacity: 0.7; }
+    .admin-nav-sep { color: #27272a; font-size: 12px; user-select: none; }
+    .admin-nav-link { color: #71717a; text-decoration: none; font-size: 12px; font-weight: 500; transition: color 0.15s; }
+    .admin-nav-link:hover { color: #fafafa; }
+    .admin-nav-active { color: #a1a1aa; }
+
+    /* Version toggle */
+    .sim-version {
+      position: fixed;
+      top: 46px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 100;
+      display: flex;
+      gap: 2px;
+      background: rgba(24, 24, 27, 0.85);
+      border: 1px solid rgba(63, 63, 70, 0.5);
+      border-radius: 8px;
+      padding: 2px;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    .sim-version button {
+      background: transparent;
+      border: none;
+      border-radius: 6px;
+      color: #71717a;
+      font-family: 'Inter', sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .sim-version button:hover { color: #e4e4e7; }
+    .sim-version button.active {
+      background: rgba(34, 197, 94, 0.12);
+      color: #22c55e;
+    }
+
+    /* Loading state */
+    .sim-loading {
+      position: fixed;
+      bottom: 16px;
+      left: 16px;
+      z-index: 100;
+      font-size: 11px;
+      color: #52525b;
+    }
+
+    /* FPS counter (dev) */
+    .sim-fps {
+      position: fixed;
+      top: 52px;
+      right: 104px;
+      z-index: 100;
+      font-size: 10px;
+      font-family: 'SF Mono', monospace;
+      color: #3f3f46;
+    }
+
+    /* Sound toggle + dropdown */
+    .sound-wrap {
+      position: fixed;
+      top: 46px;
+      right: 16px;
+      z-index: 100;
+    }
+    .sound-toggle {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: rgba(24, 24, 27, 0.85);
+      border: 1px solid rgba(63, 63, 70, 0.5);
+      color: #71717a;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: color 0.2s, border-color 0.2s;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      user-select: none;
+      -webkit-user-select: none;
+      line-height: 1;
+    }
+    .sound-toggle:hover { color: #fafafa; border-color: rgba(113, 113, 122, 0.5); }
+    .sound-toggle.active { color: #22c55e; border-color: rgba(34, 197, 94, 0.3); }
+
+    .sound-menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      min-width: 120px;
+      background: rgba(24, 24, 27, 0.95);
+      border: 1px solid rgba(63, 63, 70, 0.5);
+      border-radius: 8px;
+      padding: 4px;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-4px);
+      transition: all 0.15s ease;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    .sound-menu.open {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+    .sound-menu-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 7px 10px;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: #a1a1aa;
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.12s;
+      text-align: left;
+    }
+    .sound-menu-item:hover { background: rgba(63, 63, 70, 0.3); color: #fafafa; }
+    .sound-menu-item.active { color: #22c55e; }
+    .sound-menu-item .sm-icon { font-size: 14px; width: 18px; text-align: center; flex-shrink: 0; }
+    .sound-menu-item .sm-label { flex: 1; }
+
+    @media (max-width: 600px) {
+      .sound-wrap { top: 38px; right: 10px; }
+      .sound-toggle { width: 28px; height: 28px; font-size: 14px; }
+    }
+
+    /* Camera controller */
+    .cam-ctrl {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .cam-top-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+    }
+    /* Zoom keys row (left of WASD) */
+    .cam-zoom-keys {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 3px;
+      opacity: 0.4;
+      transition: opacity 0.3s;
+    }
+    .cam-ctrl:hover .cam-zoom-keys { opacity: 0.65; }
+    .cam-pad {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: rgba(24, 24, 27, 0.85);
+      border: 1px solid rgba(63, 63, 70, 0.5);
+      position: relative;
+      touch-action: none;
+      cursor: grab;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    .cam-pad:active { cursor: grabbing; }
+    .cam-pad-knob {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: rgba(113, 113, 122, 0.4);
+      border: 1px solid rgba(113, 113, 122, 0.3);
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      transition: background 0.15s;
+    }
+    .cam-pad.active .cam-pad-knob {
+      background: rgba(34, 197, 94, 0.5);
+      border-color: rgba(34, 197, 94, 0.4);
+    }
+    /* Crosshair lines */
+    .cam-pad::before, .cam-pad::after {
+      content: '';
+      position: absolute;
+      background: rgba(63, 63, 70, 0.3);
+      pointer-events: none;
+    }
+    .cam-pad::before {
+      width: 1px; height: 20px;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .cam-pad::after {
+      width: 20px; height: 1px;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .cam-btns {
+      display: flex;
+      gap: 4px;
+    }
+    .cam-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: rgba(24, 24, 27, 0.85);
+      border: 1px solid rgba(63, 63, 70, 0.5);
+      color: #71717a;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      line-height: 1;
+    }
+    .cam-btn:hover { color: #fafafa; border-color: rgba(113, 113, 122, 0.5); }
+    .cam-btn:active { color: #22c55e; }
+    .cam-btn-reset { font-size: 10px; }
+
+    /* WASD key hints */
+    .cam-keys {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      opacity: 0.4;
+      transition: opacity 0.3s;
+    }
+    .cam-ctrl:hover .cam-keys { opacity: 0.65; }
+    .cam-keys-row {
+      display: flex;
+      gap: 3px;
+    }
+    .cam-key {
+      width: 28px;
+      height: 28px;
+      border-radius: 5px;
+      background: rgba(24, 24, 27, 0.8);
+      border: 1px solid rgba(63, 63, 70, 0.45);
+      color: #71717a;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    .cam-key.active {
+      color: #22c55e;
+      border-color: rgba(34, 197, 94, 0.4);
+    }
+    /* Tooltip on hover */
+    .cam-key[data-tip] {
+      position: relative;
+      cursor: default;
+    }
+    .cam-key[data-tip]::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      white-space: nowrap;
+      font-size: 10px;
+      font-weight: 500;
+      color: #e4e4e7;
+      background: rgba(24, 24, 27, 0.95);
+      border: 1px solid rgba(63, 63, 70, 0.5);
+      border-radius: 5px;
+      padding: 3px 7px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s;
+    }
+    .cam-key[data-tip]:hover::after {
+      opacity: 1;
+    }
+
+    /* Hide old touch button row by default; show on touch-only devices alongside key hints */
+    .cam-btns { display: none; }
+    @media (hover: none) {
+      .cam-btns { display: flex; }
+    }
+    @media (max-width: 600px) {
+      .agent-label { font-size: 8px; }
+      .zone-label { font-size: 10px; }
+      .activity-bubble { font-size: 8px; padding: 2px 5px; max-width: 130px; }
+      .admin-nav { top: 10px; left: 10px; gap: 6px; }
+      .admin-nav-link { font-size: 11px; }
+      .admin-nav-logo img { height: 16px; }
+      .sim-loading { bottom: 10px; left: 10px; font-size: 10px; }
+      .sim-version { top: 38px; }
+      .sim-fps { top: 42px; right: 90px; font-size: 9px; }
+      .cam-ctrl { bottom: 16px; right: 16px; }
+      .cam-pad { width: 64px; height: 64px; }
+      .cam-pad-knob { width: 20px; height: 20px; }
+    }
+
+    /* Very small screens (SE, small Android) */
+    @media (max-width: 380px) {
+      .agent-label { font-size: 7px; }
+      .zone-label { font-size: 8px; }
+      .activity-bubble { font-size: 7px; padding: 2px 4px; max-width: 110px; }
+      .admin-nav-link { display: none; } /* hide nav links, keep logo */
+      .admin-nav-sep { display: none; }
+    }
+
+    /* Landscape mobile (short and wide) */
+    @media (max-height: 500px) {
+      .admin-nav { top: 8px; left: 8px; }
+      .admin-nav-logo img { height: 14px; }
+    }
+
+    /* ========== Skin Drawer ========== */
+    .skin-toggle {
+      position: fixed;
+      top: 46px;
+      right: 56px;
+      z-index: 100;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: rgba(24, 24, 27, 0.85);
+      border: 1px solid rgba(63, 63, 70, 0.5);
+      color: #71717a;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: color 0.2s, border-color 0.2s;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      user-select: none;
+      line-height: 1;
+    }
+    .skin-toggle:hover { color: #fafafa; border-color: rgba(113, 113, 122, 0.5); }
+    .skin-toggle.active { color: #a78bfa; border-color: rgba(167, 139, 250, 0.3); }
+
+    .skin-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5);
+      opacity: 0; visibility: hidden;
+      transition: all 0.3s ease;
+      z-index: 200;
+    }
+    .skin-overlay.open { opacity: 1; visibility: visible; }
+
+    .skin-drawer {
+      position: fixed; top: 0; right: 0;
+      width: 340px; height: 100vh; height: 100dvh;
+      background: #0a0a0a;
+      border-left: 1px solid #1a1a1a;
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+      z-index: 201;
+      display: flex; flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    }
+    .skin-drawer.open { transform: translateX(0); }
+
+    .skin-drawer-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid #1a1a1a;
+      flex-shrink: 0;
+    }
+    .skin-drawer-title {
+      font-size: 13px; font-weight: 600; color: #fafafa;
+    }
+    .skin-drawer-close {
+      background: none; border: none; color: #71717a;
+      cursor: pointer; padding: 4px; display: flex;
+      transition: color 0.15s;
+    }
+    .skin-drawer-close:hover { color: #fafafa; }
+
+    .skin-drawer-body {
+      flex: 1; overflow-y: auto; padding: 12px 16px;
+    }
+
+    .skin-agent {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .skin-agent:last-child { border-bottom: none; }
+
+    .skin-agent-avatar {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: #18181b; overflow: hidden; flex-shrink: 0;
+    }
+    .skin-agent-avatar img {
+      width: 100%; height: 100%; object-fit: cover;
+    }
+
+    .skin-agent-name {
+      flex: 1; font-size: 12px; font-weight: 500; color: #e4e4e7;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    .skin-swatches {
+      display: flex; gap: 4px; flex-shrink: 0;
+    }
+    .skin-swatch {
+      width: 24px; height: 24px; border-radius: 6px;
+      border: 2px solid transparent;
+      cursor: pointer; transition: all 0.15s;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; line-height: 1;
+    }
+    .skin-swatch:hover { border-color: rgba(255,255,255,0.2); }
+    .skin-swatch.active { border-color: #fafafa; }
+    .skin-swatch[data-skin="red"] { background: #b91c1c; }
+    .skin-swatch[data-skin="blue"] { background: #1d4ed8; }
+    .skin-swatch[data-skin="gold"] { background: #a16207; }
+    .skin-swatch[data-skin="purple"] { background: #7c3aed; }
+
+    .skin-swatch.pending { border-color: #a78bfa; border-style: dashed; }
+
+    .skin-drawer-footer {
+      padding: 12px 20px 16px;
+      border-top: 1px solid #1a1a1a;
+      flex-shrink: 0;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .skin-save-btn {
+      background: rgba(167, 139, 250, 0.12);
+      border: 1px solid rgba(167, 139, 250, 0.3);
+      border-radius: 6px;
+      color: #a78bfa;
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 8px 18px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .skin-save-btn:hover { background: rgba(167, 139, 250, 0.2); color: #c4b5fd; }
+    .skin-save-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .skin-save-status {
+      font-size: 11px; color: #52525b; flex: 1;
+    }
+
+    @media (max-width: 600px) {
+      .skin-toggle { top: 38px; right: 46px; width: 28px; height: 28px; font-size: 14px; }
+      .skin-drawer { width: 280px; }
+    }
+
+    /* Element rack — left sidebar, vertically centered */
+    .elem-rack {
+      position: fixed;
+      top: 50%;
+      left: 16px;
+      transform: translateY(-50%);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      background: rgba(10, 10, 12, 0.85);
+      border: 1px solid rgba(63, 63, 70, 0.4);
+      border-radius: 8px;
+      padding: 6px;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      max-height: calc(100dvh - 80px);
+      overflow-y: auto;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .elem-rack.drop-hover {
+      border-color: rgba(34, 197, 94, 0.6);
+      box-shadow: 0 0 12px rgba(34, 197, 94, 0.2);
+    }
+    .elem-rack-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 8px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background 0.12s;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .elem-rack-item:hover { background: rgba(63, 63, 70, 0.25); }
+    .elem-rack-label {
+      font-size: 11px;
+      font-weight: 500;
+      color: #a1a1aa;
+      flex: 1;
+      white-space: nowrap;
+    }
+    .elem-rack-icon {
+      width: 18px;
+      height: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #52525b;
+      flex-shrink: 0;
+      transition: color 0.15s;
+    }
+    .elem-rack-item.active .elem-rack-icon { color: #22c55e; }
+    .elem-rack-item.active .elem-rack-label { color: #e4e4e7; }
+    .elem-rack-item.stashed .elem-rack-icon { color: #3f3f46; }
+    .elem-rack-item.stashed .elem-rack-label { color: #3f3f46; text-decoration: line-through; }
+  </style>
+</head>
+<body>
+  <div class="admin-nav">
+    <a href="/" class="admin-nav-logo"><img src="/clawnads-logo-white.svg" alt="Clawnads"></a>
+    <span class="admin-nav-sep">&middot;</span>
+    <a href="/analytics" class="admin-nav-link">Analytics</a>
+    <span class="admin-nav-sep">&middot;</span>
+    <a href="/sim" class="admin-nav-link admin-nav-active">Sim</a>
+    <span class="admin-nav-sep">&middot;</span>
+    <a href="/character" class="admin-nav-link">Character</a>
+    <span class="admin-nav-sep">&middot;</span>
+    <a href="/invites" class="admin-nav-link">Invites</a>
+    <span class="admin-nav-sep">&middot;</span>
+    <a href="/elements" class="admin-nav-link">Elements</a>
+    <span class="admin-nav-sep">&middot;</span>
+    <a href="/store" class="admin-nav-link">Store</a>
+    <span class="admin-nav-sep">&middot;</span>
+    <a href="/admin/store-manage" class="admin-nav-link">Store Ops</a>
+  </div>
+  <div class="anav-profile" id="admin-nav-profile"></div>
+  <div class="elem-rack" id="elem-rack"></div>
+  <div class="sim-version" id="sim-version">
+    <button id="sim-v1" title="V1 Primitives">V1</button>
+    <button id="sim-v2" title="V2 Meshy">V2</button>
+  </div>
+  <div class="sim-loading" id="sim-loading">Loading sim...</div>
+  <div class="sim-fps" id="sim-fps"></div>
+  <div class="sound-wrap" id="sound-wrap">
+    <button class="sound-toggle" id="sound-toggle" title="Music">
+      <svg id="sound-icon-off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <line x1="23" y1="9" x2="17" y2="15"></line>
+        <line x1="17" y1="9" x2="23" y2="15"></line>
+      </svg>
+      <svg id="sound-icon-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+      </svg>
+    </button>
+    <div class="sound-menu" id="sound-menu">
+      <button class="sound-menu-item" data-mode="lofi">
+        <span class="sm-icon">🎵</span>
+        <span class="sm-label">Lo-fi</span>
+      </button>
+      <button class="sound-menu-item" data-mode="party">
+        <span class="sm-icon">🎉</span>
+        <span class="sm-label">Party</span>
+      </button>
+    </div>
+  </div>
+  <button class="skin-toggle" id="skin-toggle" title="Agent skins">🎨</button>
+  <div class="skin-overlay" id="skin-overlay"></div>
+  <div class="skin-drawer" id="skin-drawer">
+    <div class="skin-drawer-header">
+      <div class="skin-drawer-title">Agent Skins</div>
+      <button class="skin-drawer-close" id="skin-drawer-close">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+    </div>
+    <div class="skin-drawer-body" id="skin-drawer-body">
+      <div style="color:#52525b;font-size:12px;padding:20px 0;text-align:center;">Loading agents…</div>
+    </div>
+    <div class="skin-drawer-footer">
+      <button class="skin-save-btn" id="skin-save-btn" disabled>Save</button>
+      <span class="skin-save-status" id="skin-save-status"></span>
+    </div>
+  </div>
+  <audio id="lofi-audio" loop preload="metadata" src="/trading-floor/lofi.mp3"></audio>
+  <audio id="party-audio" loop preload="metadata" src="/trading-floor/party.mp3"></audio>
+  <div id="canvas-container"></div>
+
+  <!-- Camera controller -->
+  <div class="cam-ctrl" id="cam-ctrl">
+    <div class="cam-top-row">
+      <div class="cam-zoom-keys">
+        <div class="cam-key" data-key="q" data-tip="Zoom out (Q)">&minus;</div>
+        <div class="cam-key" data-key="r" data-tip="Reset (R)">&#8634;</div>
+        <div class="cam-key" data-key="e" data-tip="Zoom in (E)">+</div>
+      </div>
+      <div class="cam-keys" id="cam-keys">
+        <div class="cam-keys-row"><div class="cam-key" data-key="w" data-tip="Forward">W</div></div>
+        <div class="cam-keys-row">
+          <div class="cam-key" data-key="a" data-tip="Left">A</div>
+          <div class="cam-key" data-key="s" data-tip="Back">S</div>
+          <div class="cam-key" data-key="d" data-tip="Right">D</div>
+        </div>
+      </div>
+      <div class="cam-pad" id="cam-pad">
+        <div class="cam-pad-knob" id="cam-knob"></div>
+      </div>
+    </div>
+    <div class="cam-btns">
+      <button class="cam-btn" id="cam-zoom-out" title="Zoom out">&minus;</button>
+      <button class="cam-btn cam-btn-reset" id="cam-reset" title="Reset view">&#8634;</button>
+      <button class="cam-btn" id="cam-zoom-in" title="Zoom in">+</button>
+    </div>
+  </div>
+
+  <script>
+    // Version toggle — V1 (primitives) / V2 (GLTF Meshy)
+    (function() {
+      const params = new URLSearchParams(location.search);
+      const compact = params.get('compact') === '1';
+      window.__simCompact = compact;
+
+      // Compact mode: force V2, hide chrome
+      const version = compact ? 'v2' : (params.get('characters') || 'v2');
+      window.__charVersion = version;
+
+      if (compact) {
+        // Hide all chrome — admin nav, version toggle, skin drawer, sound, cam, fps, rack
+        ['sim-version', 'skin-toggle', 'skin-overlay', 'skin-drawer',
+         'sound-wrap', 'cam-ctrl', 'sim-fps', 'sim-loading', 'elem-rack', 'admin-nav-profile'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.style.display = 'none';
+        });
+        document.querySelector('.admin-nav').style.display = 'none';
+        return;
+      }
+
+      const v1Btn = document.getElementById('sim-v1');
+      const v2Btn = document.getElementById('sim-v2');
+      (version === 'v2' ? v2Btn : v1Btn).classList.add('active');
+
+      v1Btn.addEventListener('click', () => {
+        if (version === 'v1') return;
+        params.set('characters', 'v1');
+        location.search = params.toString();
+      });
+      v2Btn.addEventListener('click', () => {
+        if (version === 'v2') return;
+        params.set('characters', 'v2');
+        location.search = params.toString();
+      });
+    })();
+  </script>
+  <script type="module" src="/trading-floor/main.js"></script>
+  <script>
+    // Sound menu — each mode has its own audio track
+    // lofi  → lofi.mp3 (chill beats)
+    // party → party.mp3 (upbeat dance) — falls back to lofi.mp3 if missing
+    (function() {
+      const btn = document.getElementById('sound-toggle');
+      const menu = document.getElementById('sound-menu');
+      const wrap = document.getElementById('sound-wrap');
+      const lofiAudio = document.getElementById('lofi-audio');
+      const partyAudio = document.getElementById('party-audio');
+      const iconOff = document.getElementById('sound-icon-off');
+      const iconOn = document.getElementById('sound-icon-on');
+      const menuItems = menu.querySelectorAll('.sound-menu-item');
+
+      const tracks = { lofi: lofiAudio, party: partyAudio };
+      let activeAudio = null;
+      let currentMode = 'off';
+      let menuOpen = false;
+      let hoverTimer = null;
+      let partyFallback = false; // true if party.mp3 failed to load
+
+      // Detect missing party track — fall back to lofi
+      partyAudio.addEventListener('error', () => {
+        partyFallback = true;
+        tracks.party = lofiAudio;
+      });
+
+      function setIconOn() {
+        btn.classList.add('active');
+        iconOff.style.display = 'none';
+        iconOn.style.display = '';
+      }
+      function setIconOff() {
+        btn.classList.remove('active');
+        iconOff.style.display = '';
+        iconOn.style.display = 'none';
+      }
+      function openMenu() {
+        menuOpen = true;
+        menu.classList.add('open');
+      }
+      function closeMenu() {
+        menuOpen = false;
+        menu.classList.remove('open');
+      }
+      function updateActiveItem() {
+        menuItems.forEach(item => {
+          item.classList.toggle('active', item.dataset.mode === currentMode);
+        });
+      }
+
+      function stopAudio() {
+        if (activeAudio) { activeAudio.pause(); activeAudio = null; }
+      }
+
+      function setMode(mode) {
+        currentMode = mode;
+        closeMenu();
+        updateActiveItem();
+
+        if (mode === 'off') {
+          stopAudio();
+          setIconOff();
+          if (window.__tradingFloor) window.__tradingFloor.setMusicMode('off');
+        } else {
+          const newTrack = tracks[mode] || lofiAudio;
+          // Switch tracks if needed
+          if (activeAudio && activeAudio !== newTrack) {
+            activeAudio.pause();
+          }
+          activeAudio = newTrack;
+          activeAudio.volume = mode === 'party' ? 0.45 : 0.35;
+          if (activeAudio.paused) {
+            activeAudio.play().catch((err) => {
+              console.error('[sound] play failed:', err);
+              currentMode = 'off';
+              setIconOff();
+              return;
+            });
+          }
+          setIconOn();
+          if (window.__tradingFloor) window.__tradingFloor.setMusicMode(mode);
+        }
+      }
+
+      // Click when playing → turn off
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (currentMode !== 'off') setMode('off');
+      });
+
+      // Hover always opens menu
+      wrap.addEventListener('mouseenter', () => {
+        clearTimeout(hoverTimer);
+        openMenu();
+      });
+      wrap.addEventListener('mouseleave', () => {
+        hoverTimer = setTimeout(closeMenu, 200);
+      });
+
+      // Menu item clicks
+      menuItems.forEach(item => {
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const mode = item.dataset.mode;
+          if (mode === currentMode) setMode('off');
+          else setMode(mode);
+        });
+      });
+
+      // Close menu when clicking outside
+      document.addEventListener('click', (e) => {
+        if (menuOpen && !wrap.contains(e.target)) closeMenu();
+      });
+    })();
+  </script>
+  <script>
+    // Skin assignment drawer (with explicit Save button)
+    (function() {
+      const toggle = document.getElementById('skin-toggle');
+      const overlay = document.getElementById('skin-overlay');
+      const drawer = document.getElementById('skin-drawer');
+      const closeBtn = document.getElementById('skin-drawer-close');
+      const body = document.getElementById('skin-drawer-body');
+      const saveBtn = document.getElementById('skin-save-btn');
+      const saveStatus = document.getElementById('skin-save-status');
+
+      const SKINS = [
+        { key: 'red',    title: 'Red' },
+        { key: 'blue',   title: 'Blue' },
+        { key: 'gold',   title: 'Gold' },
+        { key: 'purple', title: 'Purple' },
+      ];
+
+      let agents = [];
+      let loaded = false;
+      let pendingChanges = {};
+
+      function open() {
+        overlay.classList.add('open');
+        drawer.classList.add('open');
+        toggle.classList.add('active');
+        if (!loaded) loadAgents();
+      }
+      function close() {
+        overlay.classList.remove('open');
+        drawer.classList.remove('open');
+        toggle.classList.remove('active');
+      }
+
+      toggle.addEventListener('click', () => {
+        drawer.classList.contains('open') ? close() : open();
+      });
+      overlay.addEventListener('click', close);
+      closeBtn.addEventListener('click', close);
+
+      async function loadAgents() {
+        try {
+          const res = await fetch('/agents/');
+          const data = await res.json();
+          agents = (data.agents || []).filter(a => a.x402Verified);
+          render();
+          loaded = true;
+        } catch (e) {
+          body.innerHTML = '<div style="color:#ef4444;font-size:12px;padding:20px 0;text-align:center;">Failed to load agents</div>';
+        }
+      }
+
+      function render() {
+        if (!agents.length) {
+          body.innerHTML = '<div style="color:#52525b;font-size:12px;padding:20px 0;text-align:center;">No verified agents</div>';
+          return;
+        }
+        body.innerHTML = '';
+        for (const agent of agents) {
+          const row = document.createElement('div');
+          row.className = 'skin-agent';
+
+          const avatar = document.createElement('div');
+          avatar.className = 'skin-agent-avatar';
+          if (agent.avatarUrl) {
+            const img = document.createElement('img');
+            img.src = agent.avatarUrl;
+            img.alt = agent.name;
+            avatar.appendChild(img);
+          }
+
+          const name = document.createElement('div');
+          name.className = 'skin-agent-name';
+          name.textContent = agent.name;
+
+          const swatches = document.createElement('div');
+          swatches.className = 'skin-swatches';
+          const savedSkin = agent.characterSkin || 'red';
+          const currentSkin = pendingChanges[agent.name] || savedSkin;
+
+          for (const skin of SKINS) {
+            const sw = document.createElement('button');
+            sw.className = 'skin-swatch';
+            if (currentSkin === skin.key) sw.classList.add('active');
+            if (pendingChanges[agent.name] && pendingChanges[agent.name] === skin.key && pendingChanges[agent.name] !== savedSkin) {
+              sw.classList.add('pending');
+            }
+            sw.dataset.skin = skin.key;
+            sw.title = skin.title;
+            sw.addEventListener('click', () => selectSkin(agent.name, skin.key, savedSkin));
+            swatches.appendChild(sw);
+          }
+
+          row.appendChild(avatar);
+          row.appendChild(name);
+          row.appendChild(swatches);
+          body.appendChild(row);
+        }
+      }
+
+      function selectSkin(agentName, skin, savedSkin) {
+        if (skin === savedSkin) {
+          delete pendingChanges[agentName];
+        } else {
+          pendingChanges[agentName] = skin;
+        }
+        render();
+        updateSaveBtn();
+      }
+
+      function updateSaveBtn() {
+        const count = Object.keys(pendingChanges).length;
+        saveBtn.disabled = !count;
+        saveStatus.textContent = count ? `${count} change${count > 1 ? 's' : ''}` : '';
+        saveStatus.style.color = count ? '#a78bfa' : '#52525b';
+      }
+
+      saveBtn.addEventListener('click', saveSkins);
+
+      async function saveSkins() {
+        const changes = Object.entries(pendingChanges);
+        if (!changes.length) return;
+
+        saveBtn.disabled = true;
+        saveStatus.textContent = 'Saving…';
+        saveStatus.style.color = '#a78bfa';
+
+        let saved = 0;
+        let failed = 0;
+
+        for (const [agentName, skin] of changes) {
+          try {
+            const res = await fetch(`/admin/agents/${encodeURIComponent(agentName)}/skin`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ skin }),
+            });
+            if (!res.ok) throw new Error('Failed');
+            const agent = agents.find(a => a.name === agentName);
+            if (agent) agent.characterSkin = skin;
+            delete pendingChanges[agentName];
+            saved++;
+          } catch (e) {
+            failed++;
+            console.error('[skin] save failed for', agentName, e.message);
+          }
+        }
+
+        render();
+        updateSaveBtn();
+
+        if (failed) {
+          saveStatus.textContent = `${saved} saved, ${failed} failed`;
+          saveStatus.style.color = '#ef4444';
+        } else {
+          saveStatus.textContent = 'Saved ✓ Reloading…';
+          saveStatus.style.color = '#22c55e';
+          // Reload page so characters re-render with new skins
+          setTimeout(() => location.reload(), 800);
+        }
+      }
+
+      // Enter key triggers save when drawer is open
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && drawer.classList.contains('open') && !saveBtn.disabled) {
+          e.preventDefault();
+          saveBtn.click();
+        }
+      });
+    })();
+  </script>
+  <script>
+    // Camera controller — continuous rAF loop drives OrbitControls while joystick is held
+    (function() {
+      const pad = document.getElementById('cam-pad');
+      const knob = document.getElementById('cam-knob');
+      const zoomInBtn = document.getElementById('cam-zoom-in');
+      const zoomOutBtn = document.getElementById('cam-zoom-out');
+      const resetBtn = document.getElementById('cam-reset');
+
+      let dragging = false;
+      let padRect = null;
+      // Normalized displacement: -1 to 1 on each axis
+      let stickX = 0;
+      let stickY = 0;
+      let loopId = null;
+
+      function getFloor() { return window.__tradingFloor; }
+
+      // --- Continuous rotation loop (runs while stick is displaced) ---
+      function loop() {
+        loopId = requestAnimationFrame(loop);
+        const floor = getFloor();
+        if (!floor || !floor.controls) return;
+        if (Math.abs(stickX) < 0.05 && Math.abs(stickY) < 0.05) return;
+
+        const rotateSpeed = 0.015;
+        floor.userHasInteracted = true;
+        floor.controls._rotateLeft(-stickX * rotateSpeed);
+        floor.controls._rotateUp(stickY * rotateSpeed);
+        floor.controls.update();
+      }
+
+      function startLoop() {
+        if (loopId) return;
+        loopId = requestAnimationFrame(loop);
+      }
+
+      function stopLoop() {
+        if (loopId) { cancelAnimationFrame(loopId); loopId = null; }
+      }
+
+      // --- Pad drag handlers ---
+      function startDrag(x, y) {
+        dragging = true;
+        padRect = pad.getBoundingClientRect();
+        pad.classList.add('active');
+        updateStick(x, y);
+        startLoop();
+      }
+
+      function updateStick(x, y) {
+        if (!dragging || !padRect) return;
+        const cx = padRect.left + padRect.width / 2;
+        const cy = padRect.top + padRect.height / 2;
+        const maxR = padRect.width / 2 - 12;
+
+        let dx = x - cx;
+        let dy = y - cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > maxR) { dx = dx / dist * maxR; dy = dy / dist * maxR; }
+
+        // Move knob visually
+        knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+
+        // Normalize to -1..1
+        stickX = dx / maxR;
+        stickY = dy / maxR;
+      }
+
+      function endDrag() {
+        if (!dragging) return;
+        dragging = false;
+        stickX = 0;
+        stickY = 0;
+        pad.classList.remove('active');
+        knob.style.transform = 'translate(-50%, -50%)';
+        stopLoop();
+      }
+
+      // Mouse
+      pad.addEventListener('mousedown', (e) => { e.preventDefault(); startDrag(e.clientX, e.clientY); });
+      window.addEventListener('mousemove', (e) => { if (dragging) updateStick(e.clientX, e.clientY); });
+      window.addEventListener('mouseup', endDrag);
+
+      // Touch
+      pad.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        startDrag(e.touches[0].clientX, e.touches[0].clientY);
+      }, { passive: false });
+      window.addEventListener('touchmove', (e) => {
+        if (dragging && e.touches.length === 1) updateStick(e.touches[0].clientX, e.touches[0].clientY);
+      }, { passive: true });
+      window.addEventListener('touchend', endDrag);
+      window.addEventListener('touchcancel', endDrag);
+
+      // --- Zoom buttons ---
+      function doZoom(factor) {
+        const floor = getFloor();
+        if (!floor || !floor.camera) return;
+        floor.camera.zoom = Math.max(0.4, Math.min(2.5, floor.camera.zoom * factor));
+        floor.camera.updateProjectionMatrix();
+        if (floor.controls) floor.controls.update();
+      }
+
+      zoomInBtn.addEventListener('click', () => doZoom(1.2));
+      zoomOutBtn.addEventListener('click', () => doZoom(1 / 1.2));
+
+      // --- Reset ---
+      resetBtn.addEventListener('click', () => {
+        const floor = getFloor();
+        if (!floor) return;
+        floor.camera.zoom = 1;
+        floor.camera.updateProjectionMatrix();
+        floor._applyCameraMode();
+        floor.userHasInteracted = false; // re-enable auto-drift
+      });
+
+      // --- WASD strafe (pan camera target) ---
+      const keysDown = {};
+      let wasdLoopId = null;
+
+      function wasdLoop() {
+        wasdLoopId = requestAnimationFrame(wasdLoop);
+        const floor = getFloor();
+        if (!floor || !floor.controls || !floor.camera) return;
+
+        const speed = 0.12;
+        let dx = 0, dz = 0;
+        if (keysDown['a'] || keysDown['arrowleft'])  dx -= 1;
+        if (keysDown['d'] || keysDown['arrowright']) dx += 1;
+        if (keysDown['w'] || keysDown['arrowup'])    dz += 1;
+        if (keysDown['s'] || keysDown['arrowdown'])  dz -= 1;
+        if (dx === 0 && dz === 0) return;
+
+        // Get camera-relative horizontal directions
+        const cam = floor.camera;
+        const forward = new Float32Array(3);
+        // Camera looks at target — forward is target minus camera pos, projected onto XZ
+        const fx = floor.controls.target.x - cam.position.x;
+        const fz = floor.controls.target.z - cam.position.z;
+        const fLen = Math.sqrt(fx * fx + fz * fz) || 1;
+        const fwdX = fx / fLen;
+        const fwdZ = fz / fLen;
+        // Right is perpendicular to forward on XZ plane
+        const rightX = -fwdZ;
+        const rightZ = fwdX;
+
+        const moveX = (rightX * dx + fwdX * dz) * speed;
+        const moveZ = (rightZ * dx + fwdZ * dz) * speed;
+
+        floor.controls.target.x += moveX;
+        floor.controls.target.z += moveZ;
+        cam.position.x += moveX;
+        cam.position.z += moveZ;
+        floor.controls.update();
+
+        floor.userHasInteracted = true;
+      }
+
+      function startWasdLoop() {
+        if (wasdLoopId) return;
+        wasdLoopId = requestAnimationFrame(wasdLoop);
+      }
+
+      function stopWasdLoop() {
+        if (wasdLoopId) { cancelAnimationFrame(wasdLoopId); wasdLoopId = null; }
+      }
+
+      // Key indicator elements
+      const keyEls = {};
+      document.querySelectorAll('.cam-key[data-key]').forEach(el => {
+        keyEls[el.dataset.key] = el;
+      });
+      const arrowToWasd = { arrowup: 'w', arrowdown: 's', arrowleft: 'a', arrowright: 'd' };
+
+      function highlightKey(key, on) {
+        const wasd = arrowToWasd[key] || key;
+        const el = keyEls[wasd];
+        if (el) el.classList.toggle('active', on);
+      }
+
+      // --- Q/E zoom, R reset hotkeys ---
+      function doZoomKey(factor) {
+        const floor = getFloor();
+        if (!floor || !floor.camera) return;
+        floor.camera.zoom = Math.max(0.4, Math.min(2.5, floor.camera.zoom * factor));
+        floor.camera.updateProjectionMatrix();
+        if (floor.controls) floor.controls.update();
+      }
+
+      function doResetKey() {
+        const floor = getFloor();
+        if (!floor) return;
+        floor.camera.zoom = 1;
+        floor.camera.updateProjectionMatrix();
+        floor._applyCameraMode();
+        floor.userHasInteracted = false; // re-enable auto-drift
+      }
+
+      window.addEventListener('keydown', (e) => {
+        const key = e.key.toLowerCase();
+        // WASD + arrows for strafe
+        if (['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(key)) {
+          e.preventDefault();
+          if (!keysDown[key]) {
+            keysDown[key] = true;
+            highlightKey(key, true);
+            startWasdLoop();
+          }
+        }
+        // Q = zoom out, E = zoom in, R = reset
+        if (key === 'q') { e.preventDefault(); highlightKey('q', true); doZoomKey(1 / 1.15); }
+        if (key === 'e') { e.preventDefault(); highlightKey('e', true); doZoomKey(1.15); }
+        if (key === 'r') { e.preventDefault(); highlightKey('r', true); doResetKey(); }
+      });
+
+      window.addEventListener('keyup', (e) => {
+        const key = e.key.toLowerCase();
+        delete keysDown[key];
+        highlightKey(key, false);
+        // Stop strafe loop if no movement keys held
+        const anyHeld = ['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].some(k => keysDown[k]);
+        if (!anyHeld) stopWasdLoop();
+      });
+    })();
+  </script>
+  <script>
+    // Element rack — stash/restore draggable sim elements, plus drag-to-rack
+    (function() {
+      const rack = document.getElementById('elem-rack');
+      if (!rack || window.__simCompact) return;
+
+      // Nice display names for each draggable group
+      const ELEMENT_LABELS = {
+        'trading-pit': 'Trading Pit',
+        'signals-desk': 'Signals Desk',
+        'skills-desk': 'Skills Desk',
+        'sign': 'Sign',
+        'kiosk': 'Kiosk',
+        'colonnade': 'Colonnade',
+        'statue': 'Statue',
+      };
+
+      // Eye open SVG
+      const EYE_ON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+      // Eye closed SVG
+      const EYE_OFF = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+
+      const stashed = {};     // name → true
+      let populated = false;
+      let itemMap = {};       // name → DOM element
+
+      function populate() {
+        const floor = window.__tradingFloor;
+        if (!floor || !floor.environment) return;
+        const groups = floor.environment.draggableGroups;
+        if (!groups || !Object.keys(groups).length) return;
+        populated = true;
+
+        rack.innerHTML = '';
+        itemMap = {};
+        for (const [name, group] of Object.entries(groups)) {
+          const label = ELEMENT_LABELS[name] || name;
+          const item = document.createElement('div');
+          item.className = 'elem-rack-item active';
+          item.dataset.name = name;
+          item.innerHTML = `<span class="elem-rack-icon">${EYE_ON}</span><span class="elem-rack-label">${label}</span>`;
+          item.addEventListener('click', () => toggleElement(name));
+          rack.appendChild(item);
+          itemMap[name] = item;
+        }
+      }
+
+      function stashElement(name) {
+        const floor = window.__tradingFloor;
+        if (!floor || !floor.environment) return;
+        const group = floor.environment.draggableGroups[name];
+        const item = itemMap[name];
+        if (!group || !item || stashed[name]) return;
+        stashed[name] = true;
+        group.visible = false;
+        item.className = 'elem-rack-item stashed';
+        item.querySelector('.elem-rack-icon').innerHTML = EYE_OFF;
+      }
+
+      function restoreElement(name) {
+        const floor = window.__tradingFloor;
+        if (!floor || !floor.environment) return;
+        const group = floor.environment.draggableGroups[name];
+        const item = itemMap[name];
+        if (!group || !item || !stashed[name]) return;
+        group.visible = true;
+        delete stashed[name];
+        item.className = 'elem-rack-item active';
+        item.querySelector('.elem-rack-icon').innerHTML = EYE_ON;
+      }
+
+      function toggleElement(name) {
+        if (stashed[name]) restoreElement(name);
+        else stashElement(name);
+      }
+
+      // --- Drag-to-rack detection ---
+      // When Shift+dragging an element (main.js dev drag), dropping it onto the rack stashes it.
+      // We intercept pointermove to show drop-hover, and pointerup to detect the drop.
+
+      let lastPointerX = 0, lastPointerY = 0;
+
+      function isOverRack(x, y) {
+        const r = rack.getBoundingClientRect();
+        // Generous hit area — 20px padding around the rack
+        return x >= r.left - 20 && x <= r.right + 20 && y >= r.top - 20 && y <= r.bottom + 20;
+      }
+
+      function isDragging() {
+        const f = window.__tradingFloor;
+        return f && f._dragTarget && f._dragName;
+      }
+
+      document.addEventListener('pointermove', (e) => {
+        lastPointerX = e.clientX;
+        lastPointerY = e.clientY;
+        // Show/hide drop-hover while dragging
+        if (isDragging()) {
+          if (isOverRack(e.clientX, e.clientY)) {
+            rack.classList.add('drop-hover');
+          } else {
+            rack.classList.remove('drop-hover');
+          }
+        } else {
+          rack.classList.remove('drop-hover');
+        }
+      });
+
+      // Capture phase — fires BEFORE main.js pointerup clears _dragTarget
+      document.addEventListener('pointerup', (e) => {
+        rack.classList.remove('drop-hover');
+        if (!isDragging()) return;
+        if (!isOverRack(e.clientX, e.clientY)) return;
+
+        const floor = window.__tradingFloor;
+        const name = floor._dragName;
+        const group = floor._dragTarget;
+        if (!name || !group) return;
+
+        // Stash the element
+        stashElement(name);
+
+        // Clear the drag state so main.js _onDragEnd doesn't save position
+        floor._dragTarget = null;
+        floor._dragName = null;
+        floor.controls.enabled = true;
+      }, true); // <-- capture phase, runs before main.js handler
+
+      // Poll until floor is ready (async model loading)
+      const poll = setInterval(() => {
+        if (!populated) populate();
+        if (populated) clearInterval(poll);
+      }, 500);
+    })();
+  </script>
+  <script src="/admin-nav.js"></script>
+</body>
+</html>

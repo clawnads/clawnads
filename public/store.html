@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Store — Clawnads</title>
+  <link rel="icon" type="image/svg+xml" href="/clawnads-favicon-white.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css?v=store1">
+  <link rel="stylesheet" href="/admin.css?v=admin20">
+  <link rel="stylesheet" href="/admin-nav.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script src="https://unpkg.com/lucide@0.564.0/dist/umd/lucide.min.js" integrity="sha384-5C/p6b/eqS/9zLGmFXgLCD0c4jXA3X6gWIGGw3IAt4DVpkEuf+EwtWBLR3/d5TZT" crossorigin="anonymous"></script>
+  <style>
+    .store-page {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: var(--space-8) var(--space-16);
+    }
+
+    .store-header {
+      margin-bottom: var(--space-8);
+    }
+
+    .store-header h2 {
+      font-size: var(--text-2xl);
+      font-weight: 700;
+      color: var(--color-text-primary);
+      margin: 0;
+    }
+
+    /* Responsive card grid — 4 breakpoints: wide/desktop/tablet/mobile */
+    .store-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      padding: 20px 0;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .store-card {
+      position: relative;
+      aspect-ratio: 9 / 16;
+      min-height: 0;
+      border-radius: 16px;
+      overflow: hidden;
+      cursor: pointer;
+      border: 1px solid transparent;
+      outline: 2px solid transparent;
+      outline-offset: -1px;
+      transition: transform 0.15s ease, border-color 0.15s ease, outline-color 0.15s ease, filter 0.15s ease;
+    }
+
+    .store-card:hover {
+      transform: translateY(-4px) scale(1.02);
+      border-color: rgba(255, 255, 255, 0.3);
+      outline-color: rgba(255, 255, 255, 0.08);
+      filter: drop-shadow(0 8px 24px rgba(255, 255, 255, 0.1));
+    }
+
+    /* Off-sale items — dimmed */
+    .store-card.off-sale {
+      opacity: 0.45;
+      filter: saturate(0.3);
+    }
+    .store-card.off-sale:hover {
+      opacity: 0.65;
+      filter: saturate(0.5) drop-shadow(0 8px 24px rgba(255, 255, 255, 0.06));
+    }
+
+    /* Variant-tinted background */
+    .store-card-bg {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+    }
+
+    .store-card-bg.variant-red {
+      background: linear-gradient(160deg, #3d1515 0%, #1a0808 50%, #0d0404 100%);
+    }
+    .store-card-bg.variant-blue {
+      background: linear-gradient(160deg, #0f2847 0%, #081428 50%, #040a14 100%);
+    }
+    .store-card-bg.variant-gold {
+      background: linear-gradient(160deg, #3d2e0a 0%, #1a1404 50%, #0d0a02 100%);
+    }
+    .store-card-bg.variant-purple {
+      background: linear-gradient(160deg, #2d1647 0%, #160a28 50%, #0b0514 100%);
+    }
+    .store-card-bg.variant-shadow {
+      background: linear-gradient(160deg, #1c1c20 0%, #09090b 50%, #050505 100%);
+    }
+    .store-card-bg.variant-unknown {
+      background: linear-gradient(160deg, #1e1e24 0%, #0e0e12 100%);
+    }
+
+    /* 3D lobster image — fills card */
+    .store-card-img {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .store-card-img img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .store-card-img .store-loading {
+      color: rgba(255, 255, 255, 0.2);
+      font-size: var(--text-xs);
+      font-family: var(--font-mono);
+    }
+
+    /* Bottom gradient overlay for text readability */
+    .store-card-overlay {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 40px 16px 14px;
+      background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 60%, transparent 100%);
+      z-index: 2;
+    }
+
+    .store-card-type {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: rgba(255, 255, 255, 0.4);
+      margin-bottom: 2px;
+    }
+
+    .store-card-name {
+      font-family: 'Inter', var(--font-sans);
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+      line-height: 1.2;
+      margin-bottom: 4px;
+    }
+
+    .store-card-price {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    .store-card-price.free {
+      color: var(--color-success);
+    }
+
+    /* x402 requirement tag — inline with price */
+    .store-card-req-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 9px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(168, 85, 247, 0.2);
+      color: #c084fc;
+      letter-spacing: 0.03em;
+      vertical-align: middle;
+      margin-left: 6px;
+    }
+
+    /* Badges — top-left corner */
+    .store-card-badges {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      z-index: 3;
+      max-width: calc(100% - 80px); /* prevent overlap with supply pill */
+    }
+
+    .store-badge {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 3px 7px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    .store-badge-free {
+      background: rgba(34, 197, 94, 0.25);
+      color: #4ade80;
+    }
+
+    .store-badge-hidden {
+      background: rgba(239, 68, 68, 0.25);
+      color: #f87171;
+    }
+
+    .store-badge-verified {
+      background: rgba(168, 85, 247, 0.25);
+      color: #c084fc;
+    }
+
+    .store-badge-new {
+      background: rgba(59, 130, 246, 0.3);
+      color: #60a5fa;
+    }
+
+    .store-badge-nft {
+      background: rgba(168, 85, 247, 0.3);
+      color: #c084fc;
+    }
+
+    .store-badge-featured {
+      background: linear-gradient(135deg, rgba(251, 191, 36, 0.35), rgba(245, 158, 11, 0.25));
+      color: #fbbf24;
+      border: 1px solid rgba(251, 191, 36, 0.2);
+    }
+
+    /* Inventory pill — top-right */
+    .store-card-supply {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      font-size: 9px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+      padding: 3px 7px;
+      border-radius: 6px;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      background: rgba(0, 0, 0, 0.4);
+      color: rgba(255, 255, 255, 0.6);
+      z-index: 3;
+    }
+
+    .store-card-supply.low {
+      color: var(--color-warning);
+      background: rgba(245, 158, 11, 0.15);
+    }
+
+    .store-card-supply.sold-out {
+      color: var(--color-error);
+      background: rgba(239, 68, 68, 0.15);
+    }
+
+
+    .store-empty {
+      text-align: center;
+      padding: var(--space-16);
+      color: var(--color-text-muted);
+      font-size: var(--text-sm);
+      grid-column: 1 / -1;
+    }
+
+    /* ===== Product Drawer ===== */
+    .store-drawer-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: var(--z-overlay);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--transition-normal);
+    }
+    .store-drawer-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .store-drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 440px;
+      max-width: 100vw;
+      background: var(--color-bg-panel);
+      z-index: var(--z-drawer);
+      transform: translateX(100%);
+      transition: transform var(--transition-normal);
+      display: flex;
+      flex-direction: column;
+      box-shadow: var(--shadow-elevated);
+    }
+    .store-drawer.open {
+      transform: translateX(0);
+    }
+
+    .store-drawer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-8) var(--space-10);
+      border-bottom: 1px solid var(--color-border);
+      flex-shrink: 0;
+    }
+
+    .store-drawer-title {
+      font-size: var(--text-lg);
+      font-weight: 700;
+      color: var(--color-text-primary);
+    }
+
+    .store-drawer-close {
+      background: none;
+      border: none;
+      color: var(--color-text-secondary);
+      cursor: pointer;
+      padding: var(--space-2);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color var(--transition-fast), background var(--transition-fast);
+    }
+    .store-drawer-close:hover {
+      color: var(--color-text-primary);
+      background: var(--color-bg-hover);
+    }
+
+    .store-drawer-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--space-10);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-10);
+    }
+
+    /* 3D Viewer frame — fixed height so content changes don't squeeze it */
+    .store-viewer-frame {
+      position: relative;
+      width: 100%;
+      height: 320px;
+      flex-shrink: 0;
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+      background: var(--color-bg-card);
+      border: 1px solid var(--color-border);
+    }
+
+    .store-viewer-frame canvas {
+      width: 100% !important;
+      height: 100% !important;
+      display: block;
+      cursor: grab;
+    }
+    .store-viewer-frame canvas:active {
+      cursor: grabbing;
+    }
+
+    .store-viewer-hint {
+      position: absolute;
+      bottom: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+      pointer-events: none;
+      opacity: 0.6;
+      transition: opacity 0.3s ease;
+    }
+    .store-viewer-frame:hover .store-viewer-hint {
+      opacity: 0;
+    }
+
+    /* Description section */
+    .store-drawer-section {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .store-drawer-section-label {
+      font-size: var(--text-xs);
+      font-weight: 600;
+      color: var(--color-text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .store-drawer-desc {
+      font-size: var(--text-md);
+      color: var(--color-text-secondary);
+      line-height: var(--leading-relaxed);
+    }
+
+    /* Details pills (x402 req, NFT info, transferable) */
+    .store-drawer-details {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-3);
+    }
+
+    .store-detail-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: var(--text-xs);
+      font-weight: 500;
+      padding: var(--space-2) var(--space-4);
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--color-border-subtle);
+      background: var(--color-bg-card);
+      color: var(--color-text-secondary);
+    }
+
+    .store-detail-pill svg {
+      width: 13px;
+      height: 13px;
+      flex-shrink: 0;
+    }
+
+    .store-detail-pill.pill-verified {
+      background: rgba(168, 85, 247, 0.1);
+      border-color: rgba(168, 85, 247, 0.2);
+      color: #c084fc;
+    }
+
+    .store-detail-pill.pill-nft {
+      background: rgba(59, 130, 246, 0.1);
+      border-color: rgba(59, 130, 246, 0.2);
+      color: #60a5fa;
+    }
+
+    .store-detail-pill.pill-transferable {
+      background: rgba(34, 197, 94, 0.1);
+      border-color: rgba(34, 197, 94, 0.2);
+      color: #4ade80;
+    }
+
+    .store-detail-pill.pill-soulbound {
+      background: rgba(245, 158, 11, 0.1);
+      border-color: rgba(245, 158, 11, 0.2);
+      color: #fbbf24;
+    }
+
+    .store-drawer-price-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+    }
+
+    .store-drawer-price {
+      font-size: var(--text-sm);
+      font-weight: 500;
+      font-family: var(--font-mono);
+      color: var(--color-text-tertiary);
+    }
+    .store-drawer-price.free {
+      color: var(--color-success);
+    }
+
+    /* Inventory row */
+    .store-drawer-inventory {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      font-size: var(--text-sm);
+      font-family: var(--font-mono);
+      color: var(--color-text-secondary);
+    }
+    .store-drawer-inventory .inv-remaining {
+      font-weight: 600;
+      color: var(--color-text-primary);
+    }
+    .store-drawer-inventory.low .inv-remaining {
+      color: var(--color-warning);
+    }
+    .store-drawer-inventory.sold-out .inv-remaining {
+      color: var(--color-error);
+    }
+
+    /* CTA copy button — buy-button style at bottom of drawer */
+    .store-cta-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-3);
+      width: 100%;
+      padding: var(--space-5) var(--space-8);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--color-border);
+      background: var(--color-bg-card);
+      color: var(--color-text-secondary);
+      font-size: var(--text-sm);
+      font-weight: 600;
+      font-family: 'Inter', var(--font-sans);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      margin-top: auto;
+    }
+    .store-cta-btn:hover {
+      background: var(--color-bg-elevated);
+      color: var(--color-text-primary);
+      border-color: var(--color-border-subtle);
+    }
+    .store-cta-btn.copied {
+      color: var(--color-success);
+      border-color: rgba(34, 197, 94, 0.3);
+    }
+    .store-cta-btn svg {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
+    /* Animation buttons */
+    .store-anim-buttons {
+      display: flex;
+      gap: var(--space-3);
+      flex-wrap: wrap;
+    }
+
+    .store-anim-btn {
+      padding: var(--space-3) var(--space-6);
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--color-border-subtle);
+      background: var(--color-bg-card);
+      color: var(--color-text-secondary);
+      font-size: var(--text-sm);
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      font-family: 'Inter', var(--font-sans);
+    }
+    .store-anim-btn:hover {
+      background: var(--color-bg-elevated);
+      color: var(--color-text-primary);
+      border-color: var(--color-border-subtle);
+    }
+    .store-anim-btn.active {
+      background: var(--color-accent);
+      color: #fff;
+      border-color: var(--color-accent);
+    }
+
+    /* Desktop: 3 cards per row */
+    @media (max-width: 1200px) {
+      .store-grid {
+        grid-template-columns: repeat(3, 1fr);
+        max-width: 960px;
+      }
+    }
+
+    /* Tablet: 2 cards per row */
+    @media (max-width: 1024px) {
+      .store-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+        max-width: 640px;
+      }
+    }
+
+    /* Mobile: 2 cards per row, tighter spacing */
+    @media (max-width: 480px) {
+      .store-page {
+        padding: var(--space-4) var(--space-4);
+      }
+      .store-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        max-width: none;
+      }
+      .store-card {
+        border-radius: 12px;
+      }
+      .store-card-name { font-size: 12px; }
+      .store-card-price { font-size: 10px; }
+      .store-card-type { font-size: 8px; }
+      .store-card-overlay { padding: 30px 10px 10px; }
+      .store-badge { font-size: 8px; padding: 2px 5px; }
+      .store-card-supply { font-size: 8px; padding: 2px 5px; }
+
+      .store-drawer {
+        width: 100vw;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="admin-nav">
+    <a href="/" class="admin-nav-logo"><img src="/clawnads-logo-white.svg" alt="Clawnads"></a>
+    <span class="admin-nav-sep">&middot;</span>
+    <a href="/analytics" class="admin-nav-link">Analytics</a>
+    <span class="admin-nav-sep">&middot;</span>
+    <a href="/sim" class="admin-nav-link">Sim</a>
+    <span class="admin-nav-sep">&middot;</span>
+    <a href="/character" class="admin-nav-link">Character</a>
+    <span class="admin-nav-sep">&middot;</span>
+    <a href="/invites" class="admin-nav-link">Invites</a>
+    <span class="admin-nav-sep">&middot;</span>
+    <a href="/elements" class="admin-nav-link">Elements</a>
+    <span class="admin-nav-sep">&middot;</span>
+    <a href="/store" class="admin-nav-link admin-nav-active">Store</a>
+    <span class="admin-nav-sep">&middot;</span>
+    <a href="/admin/store-manage" class="admin-nav-link">Store Ops</a>
+  </div>
+  <div class="anav-profile" id="admin-nav-profile"></div>
+
+  <main class="container admin-container" style="width:100%;">
+    <!-- Login State -->
+    <div id="login-view" style="display:none;">
+      <div class="admin-login-card">
+        <div class="admin-login-icon">
+          <img src="/happy-crab-blue.svg" alt="" style="width:96px;height:auto;">
+        </div>
+        <h2 class="admin-login-title">Admin Access</h2>
+        <p class="admin-login-desc">Sign in with your X account to preview the store.</p>
+        <a href="/admin/auth/login" class="btn btn-x-login">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="margin-right:8px">
+            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+          </svg>
+          Sign in with X
+        </a>
+      </div>
+    </div>
+
+    <!-- Authenticated State -->
+    <div id="admin-view" style="display:none;">
+      <div class="store-page">
+        <div class="store-header">
+          <h2>Store</h2>
+        </div>
+        <div class="store-grid" id="store-grid">
+          <div class="store-empty">Loading skins...</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Product Drawer -->
+  <div class="store-drawer-overlay" id="drawer-overlay"></div>
+  <div class="store-drawer" id="store-drawer">
+    <div class="store-drawer-header">
+      <span class="store-drawer-title" id="drawer-title">—</span>
+      <button class="store-drawer-close" id="drawer-close" aria-label="Close">
+        <i data-lucide="x" style="width:20px;height:20px;"></i>
+      </button>
+    </div>
+    <div class="store-drawer-body">
+      <!-- 3D Viewer -->
+      <div class="store-viewer-frame" id="viewer-frame">
+        <span class="store-viewer-hint">drag to rotate</span>
+      </div>
+
+      <!-- Description -->
+      <div class="store-drawer-section">
+        <span class="store-drawer-section-label">Description</span>
+        <p class="store-drawer-desc" id="drawer-desc">—</p>
+      </div>
+
+      <!-- Requirements (x402, NFT info) -->
+      <div class="store-drawer-section" id="drawer-req-section" style="display:none;">
+        <span class="store-drawer-section-label">Details</span>
+        <div class="store-drawer-details" id="drawer-details"></div>
+      </div>
+
+      <!-- Inventory -->
+      <div class="store-drawer-section" id="drawer-inv-section" style="display:none;">
+        <span class="store-drawer-section-label">Inventory</span>
+        <div class="store-drawer-inventory" id="drawer-inventory"></div>
+      </div>
+
+      <!-- Skills -->
+      <div class="store-drawer-section">
+        <span class="store-drawer-section-label">Skills</span>
+        <div class="store-anim-buttons" id="drawer-anims"></div>
+      </div>
+
+      <!-- Price (subdued, bottom of hierarchy) -->
+      <div class="store-drawer-section">
+        <span class="store-drawer-section-label">Price</span>
+        <div class="store-drawer-price-row">
+          <span class="store-drawer-price" id="drawer-price">—</span>
+        </div>
+      </div>
+
+      <!-- CTA copy button — bottom of drawer -->
+      <button class="store-cta-btn" id="drawer-cta" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        <span id="drawer-cta-text">Ask your agent to shop</span>
+      </button>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLobster } from '/character/gltf-lobster.js';
+
+    // ===== Session check =====
+    async function checkSession() {
+      // Store is public — always show it. Admin session just enables hidden skins.
+      document.getElementById('admin-view').style.display = '';
+      document.getElementById('login-view').style.display = 'none';
+      loadStore();
+    }
+
+    // ===== Render a lobster snapshot =====
+    // Portrait render matching 9:16 card aspect
+    const SNAP_W = 360;
+    const SNAP_H = 640;
+    let snapRenderer, snapScene, snapCamera;
+
+    function initSnapRenderer() {
+      snapRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      snapRenderer.setSize(SNAP_W, SNAP_H);
+      snapRenderer.setPixelRatio(2);
+      snapRenderer.outputColorSpace = THREE.SRGBColorSpace;
+      snapRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+      snapRenderer.toneMappingExposure = 1.2;
+      snapRenderer.setClearColor(0x000000, 0);
+
+      snapScene = new THREE.Scene();
+
+      // Lighting — dramatic, Fortnite-style
+      snapScene.add(new THREE.AmbientLight('#4a3a30', 0.6));
+
+      const key = new THREE.DirectionalLight('#ffeedd', 1.4);
+      key.position.set(2, 4, 3);
+      snapScene.add(key);
+
+      const fill = new THREE.DirectionalLight('#88aacc', 0.4);
+      fill.position.set(-3, 2, 1);
+      snapScene.add(fill);
+
+      const rim = new THREE.DirectionalLight('#ffffff', 0.6);
+      rim.position.set(-1, 3, -3);
+      snapScene.add(rim);
+
+      snapScene.add(new THREE.HemisphereLight('#1a1a2e', '#0a0a0c', 0.3));
+
+      // Camera — full body, portrait aspect matching card
+      snapCamera = new THREE.PerspectiveCamera(32, SNAP_W / SNAP_H, 0.1, 50);
+      snapCamera.position.set(0.3, 0.45, 1.35);
+      snapCamera.lookAt(0, 0.35, 0);
+    }
+
+    async function renderSnapshot(variant) {
+      if (!snapRenderer) initSnapRenderer();
+
+      await GLTFLobster.preload('/models', variant);
+      const lobster = GLTFLobster.createSync({ variant });
+      snapScene.add(lobster.group);
+
+      // Hide ground ring for cleaner card look
+      if (lobster.groundRing) lobster.groundRing.visible = false;
+
+      // Let idle settle
+      lobster.tick(0.016);
+      lobster.tick(0.016);
+      lobster.tick(0.016);
+
+      // 3/4 hero pose angle
+      lobster.group.rotation.y = -0.35;
+
+      snapRenderer.render(snapScene, snapCamera);
+      const dataUrl = snapRenderer.domElement.toDataURL('image/png');
+
+      snapScene.remove(lobster.group);
+      lobster.dispose();
+
+      return dataUrl;
+    }
+
+    // Cache per variant
+    const snapshotCache = {};
+    async function getSnapshot(variant) {
+      if (snapshotCache[variant]) return snapshotCache[variant];
+      const url = await renderSnapshot(variant);
+      snapshotCache[variant] = url;
+      return url;
+    }
+
+    function esc(s) {
+      const d = document.createElement('div');
+      d.textContent = s || '';
+      return d.innerHTML;
+    }
+
+    // Strip trailing zeros from price display: "1.00 USDC" → "1 USDC", "0.50 USDC" → "0.5 USDC"
+    function cleanPrice(s) {
+      return s.replace(/(\d+\.\d*?)0+(\s)/, '$1$2').replace(/\.(\s)/, '$1');
+    }
+
+    // ===== Skins data cache =====
+    let skinsData = {};
+
+    async function loadStore() {
+      const grid = document.getElementById('store-grid');
+
+      try {
+        // Try admin endpoint first (shows all skins including hidden), fall back to public
+        let r = await fetch('/admin/api/store/skins');
+        let data;
+        if (r.ok) {
+          data = await r.json();
+        }
+        if (!data?.success) {
+          // Fall back to public endpoint (visible skins only)
+          r = await fetch('/store/skins');
+          data = await r.json();
+        }
+        if (!data?.success || !data?.skins) {
+          grid.innerHTML = '<div class="store-empty">Failed to load skins</div>';
+          return;
+        }
+
+        skinsData = data.skins;
+        // Filter visible skins (admin endpoint returns all, public only returns visible)
+        const entries = Object.entries(data.skins).filter(([_, s]) => s.visible);
+        if (entries.length === 0) {
+          grid.innerHTML = '<div class="store-empty">No skins available</div>';
+          return;
+        }
+
+        // Build card HTML
+        grid.innerHTML = entries.map(([id, skin]) => {
+          const variant = skin.variant || 'unknown';
+          const variantClass = ['red', 'blue', 'gold', 'purple', 'shadow'].includes(variant) ? `variant-${variant}` : 'variant-unknown';
+
+          // Badges — top-left (only status badges, not requirement tags)
+          let badges = '';
+          if (skin.featured) badges += '<span class="store-badge store-badge-featured">Featured</span>';
+          // NEW badge — skins added in the last 7 days
+          if (skin.createdAt) {
+            const age = Date.now() - new Date(skin.createdAt).getTime();
+            if (age < 7 * 24 * 60 * 60 * 1000) {
+              badges += '<span class="store-badge store-badge-new">New</span>';
+            }
+          }
+          if (!skin.visible) badges += '<span class="store-badge store-badge-hidden">Hidden</span>';
+          if (skin.contractAddress && skin.deployStatus === 'deployed') badges += '<span class="store-badge store-badge-nft">NFT</span>';
+
+          // Supply pill — show for any skin with finite inventory
+          let supplyHtml = '';
+          const supply = skin.supply !== undefined ? skin.supply : -1;
+          const sold = skin.sold || 0;
+          if (supply !== -1) {
+            const remaining = supply - sold;
+            const cls = remaining <= 0 ? 'sold-out' : remaining <= 5 ? 'low' : '';
+            supplyHtml = `<span class="store-card-supply ${cls}">${remaining <= 0 ? 'SOLD OUT' : remaining + ' left'}</span>`;
+          }
+
+          // Price — use priceDisplay from server, strip trailing zeros
+          let priceText;
+          if (skin.free) {
+            priceText = 'FREE';
+          } else {
+            priceText = cleanPrice(skin.priceDisplay || skin.price || '0');
+          }
+
+          // Skill count label (idle, walk, run = 3 base skills)
+          const skillCount = 3;
+          const skillLabel = `${skillCount} skill${skillCount !== 1 ? 's' : ''}`;
+
+          // Off-sale dimming
+          const offSale = skin.onSale === false;
+
+          return `
+            <div class="store-card${offSale ? ' off-sale' : ''}" data-id="${id}" data-variant="${variant}">
+              <div class="store-card-bg ${variantClass}"></div>
+              <div class="store-card-img" id="preview-${id}">
+                <span class="store-loading">loading...</span>
+              </div>
+              <div class="store-card-badges">${badges}</div>
+              ${supplyHtml}
+              <div class="store-card-overlay">
+                <div class="store-card-type">${esc(skillLabel)}</div>
+                <div class="store-card-name">${esc(skin.name)}</div>
+                <div class="store-card-price ${skin.free ? 'free' : ''}">${esc(priceText)}${skin.requiresVerification ? '<span class="store-card-req-tag">x402</span>' : ''}</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        // Render 3D snapshots
+        const uniqueVariants = [...new Set(entries.map(([_, s]) => s.variant || 'red'))];
+        await Promise.all(uniqueVariants.map(v => getSnapshot(v)));
+
+        // Inject images
+        for (const [id, skin] of entries) {
+          const container = document.getElementById(`preview-${id}`);
+          if (!container) continue;
+          const dataUrl = snapshotCache[skin.variant || 'red'];
+          if (dataUrl) {
+            const loading = container.querySelector('.store-loading');
+            if (loading) loading.remove();
+            const img = document.createElement('img');
+            img.src = dataUrl;
+            img.alt = skin.name;
+            container.appendChild(img);
+          }
+        }
+
+        // Cleanup snapshot renderer (drawer uses its own)
+        if (snapRenderer) {
+          snapRenderer.dispose();
+          snapRenderer = null;
+        }
+
+        // Attach card click handlers
+        grid.querySelectorAll('.store-card').forEach(card => {
+          card.addEventListener('click', () => {
+            const id = card.dataset.id;
+            const skin = skinsData[id];
+            if (skin) openDrawer(id, skin);
+          });
+        });
+
+      } catch (err) {
+        console.error('Failed to load store:', err);
+        grid.innerHTML = '<div class="store-empty">Failed to load store</div>';
+      }
+    }
+
+    // ===== Drawer 3D Viewer =====
+    let viewerRenderer, viewerScene, viewerCamera, viewerControls;
+    let viewerLobster = null;
+    let viewerAnimFrame = null;
+    let activeAnimBtn = null;
+
+    function initViewer() {
+      const frame = document.getElementById('viewer-frame');
+      const rect = frame.getBoundingClientRect();
+      const w = rect.width;
+      const h = rect.height;
+
+      viewerRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      viewerRenderer.setSize(w, h);
+      viewerRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      viewerRenderer.outputColorSpace = THREE.SRGBColorSpace;
+      viewerRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+      viewerRenderer.toneMappingExposure = 1.2;
+      viewerRenderer.setClearColor(0x000000, 0);
+
+      // Remove old canvas if any
+      const oldCanvas = frame.querySelector('canvas');
+      if (oldCanvas) oldCanvas.remove();
+      frame.insertBefore(viewerRenderer.domElement, frame.firstChild);
+
+      viewerScene = new THREE.Scene();
+
+      // Lighting — same dramatic style as snapshot
+      viewerScene.add(new THREE.AmbientLight('#4a3a30', 0.6));
+      const key = new THREE.DirectionalLight('#ffeedd', 1.4);
+      key.position.set(2, 4, 3);
+      viewerScene.add(key);
+      const fill = new THREE.DirectionalLight('#88aacc', 0.4);
+      fill.position.set(-3, 2, 1);
+      viewerScene.add(fill);
+      const rim = new THREE.DirectionalLight('#ffffff', 0.6);
+      rim.position.set(-1, 3, -3);
+      viewerScene.add(rim);
+      viewerScene.add(new THREE.HemisphereLight('#1a1a2e', '#0a0a0c', 0.3));
+
+      // Camera — wider FOV + pulled back so full model fits in the 320px frame
+      viewerCamera = new THREE.PerspectiveCamera(34, w / h, 0.1, 50);
+      viewerCamera.position.set(0, 0.5, 1.7);
+
+      // Orbit controls
+      viewerControls = new OrbitControls(viewerCamera, viewerRenderer.domElement);
+      viewerControls.target.set(0, 0.32, 0);
+      viewerControls.enableDamping = true;
+      viewerControls.dampingFactor = 0.08;
+      viewerControls.enablePan = false;
+      viewerControls.minDistance = 0.6;
+      viewerControls.maxDistance = 3.0;
+      viewerControls.minPolarAngle = 0.3;
+      viewerControls.maxPolarAngle = Math.PI / 2 + 0.2;
+      viewerControls.update();
+    }
+
+    function disposeViewer() {
+      if (viewerAnimFrame) {
+        cancelAnimationFrame(viewerAnimFrame);
+        viewerAnimFrame = null;
+      }
+      if (viewerLobster) {
+        viewerScene.remove(viewerLobster.group);
+        viewerLobster.dispose();
+        viewerLobster = null;
+      }
+      if (viewerControls) {
+        viewerControls.dispose();
+        viewerControls = null;
+      }
+      if (viewerRenderer) {
+        viewerRenderer.dispose();
+        const frame = document.getElementById('viewer-frame');
+        const canvas = frame.querySelector('canvas');
+        if (canvas) canvas.remove();
+        viewerRenderer = null;
+      }
+      viewerScene = null;
+      viewerCamera = null;
+    }
+
+    function startViewerLoop() {
+      let lastTime = performance.now();
+      function loop(now) {
+        viewerAnimFrame = requestAnimationFrame(loop);
+        const dt = Math.min((now - lastTime) / 1000, 0.1);
+        lastTime = now;
+
+        if (viewerLobster) viewerLobster.tick(dt);
+        if (viewerControls) viewerControls.update();
+        if (viewerRenderer && viewerScene && viewerCamera) {
+          viewerRenderer.render(viewerScene, viewerCamera);
+        }
+      }
+      viewerAnimFrame = requestAnimationFrame(loop);
+    }
+
+    async function openDrawer(id, skin) {
+      const overlay = document.getElementById('drawer-overlay');
+      const drawer = document.getElementById('store-drawer');
+
+      // Populate text
+      document.getElementById('drawer-title').textContent = skin.name || '—';
+
+      // Price — subdued, bottom of hierarchy, use priceDisplay from server
+      const priceEl = document.getElementById('drawer-price');
+      if (skin.free) {
+        priceEl.textContent = 'FREE';
+        priceEl.className = 'store-drawer-price free';
+      } else {
+        priceEl.textContent = cleanPrice(skin.priceDisplay || skin.price || '0');
+        priceEl.className = 'store-drawer-price';
+      }
+
+      document.getElementById('drawer-desc').textContent = skin.description || 'No description available.';
+
+      // Details section — x402 req, NFT info, transferable status
+      const reqSection = document.getElementById('drawer-req-section');
+      const detailsEl = document.getElementById('drawer-details');
+      let detailsHtml = '';
+
+      if (skin.requiresVerification) {
+        detailsHtml += `<span class="store-detail-pill pill-verified">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Requires x402 Verification
+        </span>`;
+      }
+
+      const isNFT = skin.contractAddress && skin.deployStatus === 'deployed';
+      if (isNFT) {
+        detailsHtml += `<span class="store-detail-pill pill-nft">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          On-chain NFT
+        </span>`;
+
+        // Transferable status from skin data
+        const transferable = skin.transferable !== undefined ? skin.transferable : true;
+        if (transferable) {
+          detailsHtml += `<span class="store-detail-pill pill-transferable">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+            Tradable — can resell
+          </span>`;
+        } else {
+          detailsHtml += `<span class="store-detail-pill pill-soulbound">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Soulbound — not resellable
+          </span>`;
+        }
+      } else if (skin.nft || skin.transferable !== undefined) {
+        // Pre-deployment NFT info
+        detailsHtml += `<span class="store-detail-pill pill-nft">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          NFT (contract pending)
+        </span>`;
+        const transferable = skin.transferable !== undefined ? skin.transferable : true;
+        if (transferable) {
+          detailsHtml += `<span class="store-detail-pill pill-transferable">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+            Will be tradable
+          </span>`;
+        } else {
+          detailsHtml += `<span class="store-detail-pill pill-soulbound">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Will be soulbound
+          </span>`;
+        }
+      }
+
+      if (detailsHtml) {
+        detailsEl.innerHTML = detailsHtml;
+        reqSection.style.display = '';
+      } else {
+        reqSection.style.display = 'none';
+      }
+
+      // CTA copy button — informational, agent decides on purchase
+      const ctaBtn = document.getElementById('drawer-cta');
+      const ctaText = document.getElementById('drawer-cta-text');
+      const skinName = skin.name || id;
+      const priceInfo = skin.free ? 'free' : cleanPrice(skin.priceDisplay || skin.price || '0');
+      let purchaseCmd = `Check out the "${skinName}" skin in the Clawnads store (skin ID: ${id}, ${priceInfo}).`;
+      if (skin.contractAddress) purchaseCmd += ' It\'s an on-chain NFT.';
+      if (skin.requiresVerification) purchaseCmd += ' Requires x402 verification.';
+      ctaBtn._cmd = purchaseCmd;
+      ctaBtn._skinData = skin;
+      ctaBtn.style.display = '';
+      ctaText.textContent = 'Copy for your agent';
+      ctaBtn.classList.remove('copied');
+
+      // Inventory
+      const invSection = document.getElementById('drawer-inv-section');
+      const invEl = document.getElementById('drawer-inventory');
+      const supply = skin.supply !== undefined ? skin.supply : -1;
+      const sold = skin.sold || 0;
+      if (supply !== -1) {
+        const remaining = supply - sold;
+        const cls = remaining <= 0 ? 'sold-out' : remaining <= 5 ? 'low' : '';
+        invEl.className = 'store-drawer-inventory' + (cls ? ' ' + cls : '');
+        invEl.innerHTML = remaining <= 0
+          ? '<span class="inv-remaining">SOLD OUT</span>'
+          : `<span class="inv-remaining">${remaining}</span> of ${supply} remaining`;
+        invSection.style.display = '';
+      } else {
+        invSection.style.display = 'none';
+      }
+
+      // Skill buttons (3 base skills: idle, walk, run)
+      const animsContainer = document.getElementById('drawer-anims');
+      const anims = [
+        { key: 'idle', label: 'Idle' },
+        { key: 'walk', label: 'Walk' },
+        { key: 'run', label: 'Run' },
+      ];
+      animsContainer.innerHTML = anims.map(a =>
+        `<button class="store-anim-btn${a.key === 'idle' ? ' active' : ''}" data-anim="${a.key}">${a.label}</button>`
+      ).join('');
+
+      // Open drawer
+      overlay.classList.add('open');
+      drawer.classList.add('open');
+
+      // Initialize 3D viewer
+      disposeViewer();
+
+      // Wait one frame for drawer to be visible (so getBoundingClientRect works)
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+      initViewer();
+
+      const variant = skin.variant || 'red';
+      await GLTFLobster.preload('/models', variant);
+      viewerLobster = GLTFLobster.createSync({ variant });
+      if (viewerLobster.groundRing) viewerLobster.groundRing.visible = false;
+      viewerLobster.group.rotation.y = -0.35;
+      viewerScene.add(viewerLobster.group);
+
+      startViewerLoop();
+
+      // Bind animation buttons
+      activeAnimBtn = animsContainer.querySelector('.store-anim-btn.active');
+      animsContainer.querySelectorAll('.store-anim-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (!viewerLobster) return;
+          const anim = btn.dataset.anim;
+
+          // Update active state
+          if (activeAnimBtn) activeAnimBtn.classList.remove('active');
+          btn.classList.add('active');
+          activeAnimBtn = btn;
+
+          // Play animation
+          if (anim === 'idle') {
+            viewerLobster.stopWalk();
+          } else if (anim === 'walk') {
+            viewerLobster.startWalk();
+          } else if (anim === 'run') {
+            viewerLobster.startRun();
+          }
+        });
+      });
+    }
+
+    function closeDrawer() {
+      const overlay = document.getElementById('drawer-overlay');
+      const drawer = document.getElementById('store-drawer');
+      overlay.classList.remove('open');
+      drawer.classList.remove('open');
+
+      // Clean up viewer after transition
+      setTimeout(() => {
+        disposeViewer();
+      }, 350);
+    }
+
+    // Drawer close handlers
+    document.getElementById('drawer-close').addEventListener('click', closeDrawer);
+    document.getElementById('drawer-overlay').addEventListener('click', closeDrawer);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeDrawer();
+    });
+
+    // CTA copy button
+    document.getElementById('drawer-cta').addEventListener('click', async () => {
+      const ctaBtn = document.getElementById('drawer-cta');
+      const ctaText = document.getElementById('drawer-cta-text');
+      const cmd = ctaBtn._cmd;
+      if (!cmd) return;
+      try {
+        await navigator.clipboard.writeText(cmd);
+        ctaBtn.classList.add('copied');
+        ctaText.textContent = 'Copied!';
+        setTimeout(() => {
+          ctaBtn.classList.remove('copied');
+          // Restore based on current skin
+          const currentSkin = ctaBtn._skinData;
+          ctaText.textContent = currentSkin?.contractAddress ? 'Ask your agent to mint' : 'Ask your agent to shop';
+        }, 2000);
+      } catch {}
+    });
+
+    // ===== Init =====
+    checkSession();
+    lucide.createIcons();
+  </script>
+  <script src="/admin-nav.js"></script>
+</body>
+</html>

@@ -1,0 +1,1083 @@
+/* Developer Portal — X Console two-panel layout */
+
+/* ==================== Nav ==================== */
+
+.dev-nav {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dev-nav-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  letter-spacing: 0.02em;
+}
+
+/* ==================== Shell (sidebar + content) ==================== */
+
+.dev-shell {
+  display: flex;
+  height: 100vh;
+  padding-top: 48px; /* space for fixed top nav bar */
+}
+
+/* ==================== Vertical Nav Sidebar ==================== */
+
+.dev-nav-sidebar {
+  width: 56px;
+  min-width: 56px;
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-4) 0;
+  gap: var(--space-2);
+  background: var(--color-bg-deep);
+  flex-shrink: 0;
+}
+
+.dev-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: var(--space-3) var(--space-2);
+  width: 48px;
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-family: var(--font-sans);
+  letter-spacing: 0.02em;
+}
+
+.dev-nav-item:hover {
+  color: var(--color-text-secondary);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.dev-nav-item.active {
+  color: var(--color-accent);
+  background: rgba(124, 92, 255, 0.08);
+}
+
+/* ==================== Content Area ==================== */
+
+.dev-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ==================== Views ==================== */
+
+.dev-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dev-view[style*="display: none"],
+.dev-view[style*="display:none"] {
+  display: none !important;
+}
+
+/* ==================== Left App Sidebar ==================== */
+
+.dev-sidebar {
+  width: 300px;
+  min-width: 300px;
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.dev-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-6) var(--space-8);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.dev-sidebar-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.02em;
+}
+
+.dev-sidebar-create {
+  padding: var(--space-2) var(--space-4) !important;
+  font-size: var(--text-xs) !important;
+  gap: var(--space-1) !important;
+}
+
+.dev-sidebar-create .admin-btn-icon {
+  width: 12px !important;
+  height: 12px !important;
+}
+
+/* App List */
+
+.dev-app-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.dev-app-list-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-12);
+}
+
+/* App List Item */
+
+.dev-app-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-8);
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: all var(--transition-fast);
+}
+
+.dev-app-item:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.dev-app-item.active {
+  background: rgba(124, 92, 255, 0.06);
+  border-left-color: var(--color-accent);
+}
+
+.dev-app-item.inactive-app {
+  opacity: 0.5;
+}
+
+/* App Icon (sidebar) */
+
+.dev-app-icon {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.dev-app-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.dev-app-icon .dev-app-icon-default {
+  width: 70%;
+  height: auto;
+  opacity: 0.35;
+  object-fit: contain;
+}
+
+/* App Info (sidebar) */
+
+.dev-app-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dev-app-name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dev-app-desc-preview {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Status Dot */
+
+.dev-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dev-status-dot.active {
+  background: var(--color-success);
+}
+
+.dev-status-dot.inactive {
+  background: var(--color-error);
+}
+
+/* ==================== Right Detail Panel ==================== */
+
+.dev-detail {
+  flex: 1;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+.dev-detail-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--color-text-muted);
+  gap: var(--space-2);
+}
+
+.dev-detail-content {
+  padding: var(--space-10) var(--space-12);
+}
+
+/* Detail Header */
+
+.dev-detail-header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-6);
+  margin-bottom: var(--space-8);
+}
+
+/* Detail Icon (large, clickable for upload) */
+
+.dev-detail-icon-wrap {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  min-width: 56px;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.dev-detail-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-xl);
+  background: var(--color-bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.dev-detail-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.dev-detail-icon .dev-app-icon-default {
+  width: 70%;
+  height: auto;
+  opacity: 0.35;
+  object-fit: contain;
+}
+
+.dev-icon-upload-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  border-radius: var(--radius-xl);
+}
+
+.dev-detail-icon-wrap:hover .dev-icon-upload-overlay {
+  opacity: 1;
+}
+
+.dev-icon-upload-overlay i {
+  color: white;
+  width: 20px;
+  height: 20px;
+}
+
+/* Icon loading state */
+.dev-icon-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: var(--color-bg-elevated);
+}
+
+.dev-icon-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: dev-spin 0.6s linear infinite;
+}
+
+@keyframes dev-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Detail Header Info */
+
+.dev-detail-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.dev-detail-name {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-2);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.dev-detail-desc {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-normal);
+  margin-bottom: var(--space-2);
+}
+
+.dev-detail-meta {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* Status badge */
+
+.dev-status-badge {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+}
+
+.dev-status-badge.active {
+  color: var(--color-success);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.dev-status-badge.inactive {
+  color: var(--color-error);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+/* ==================== Detail Tabs ==================== */
+
+.dev-detail-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: var(--space-8);
+}
+
+.dev-detail-tab {
+  padding: var(--space-4) var(--space-6);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text-tertiary);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  margin-bottom: -1px;
+}
+
+.dev-detail-tab:hover {
+  color: var(--color-text-secondary);
+}
+
+.dev-detail-tab.active {
+  color: var(--color-text-primary);
+  border-bottom-color: var(--color-accent);
+}
+
+.dev-detail-tab.danger {
+  color: var(--color-text-tertiary);
+}
+
+.dev-detail-tab.danger:hover {
+  color: var(--color-error);
+}
+
+.dev-detail-tab.danger.active {
+  color: var(--color-error);
+  border-bottom-color: var(--color-error);
+}
+
+/* ==================== Tab Content ==================== */
+
+.dev-tab-content {
+  display: none;
+}
+
+.dev-tab-content.active {
+  display: block;
+}
+
+/* ==================== Credentials Tab ==================== */
+
+/* Key Row (Client ID, Secret) */
+.dev-key-section {
+  margin-bottom: var(--space-8);
+}
+
+.dev-key-label {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: var(--space-3);
+}
+
+.dev-key-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--color-bg-deep);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+}
+
+.dev-key-value {
+  flex: 1;
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  color: var(--color-text-primary);
+  word-break: break-all;
+  line-height: var(--leading-normal);
+}
+
+.dev-key-copy {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--transition-fast);
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+}
+
+.dev-key-copy:hover {
+  color: var(--color-text-primary);
+}
+
+.dev-key-copy.copied {
+  color: var(--color-success);
+}
+
+/* Rotate Secret Section */
+.dev-rotate-section {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6) var(--space-8);
+  margin-bottom: var(--space-8);
+}
+
+.dev-rotate-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-2);
+}
+
+.dev-rotate-desc {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  line-height: var(--leading-normal);
+  margin-bottom: var(--space-6);
+}
+
+.dev-rotate-row {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+/* Grace Period Badge */
+.dev-grace-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  color: var(--color-warning);
+  background: rgba(245, 158, 11, 0.08);
+  margin-bottom: var(--space-6);
+}
+
+/* Grace Period Select */
+.dev-grace-select {
+  flex: 1;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-deep);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font-size: var(--text-xs);
+  font-family: var(--font-sans);
+  cursor: pointer;
+}
+
+.dev-grace-select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+/* Emergency Revoke */
+.dev-revoke-section {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-6);
+  margin-top: var(--space-6);
+}
+
+.dev-revoke-label {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-3);
+}
+
+/* ==================== Settings Tab ==================== */
+
+.dev-settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.dev-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.dev-field-label {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.dev-field-hint {
+  font-size: 10px;
+  color: var(--color-text-muted);
+}
+
+/* Scope checkboxes (settings) */
+.dev-scopes-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.dev-scope-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.dev-scope-checkbox input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--color-text-muted);
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.dev-scope-checkbox input[type="checkbox"]:checked {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.dev-scope-checkbox input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.dev-scope-checkbox.disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.dev-scope-checkbox.disabled input { cursor: not-allowed; }
+
+.dev-scope-desc {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  margin-left: 26px;
+  margin-top: -2px;
+}
+
+.dev-scope-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.dev-scope-badge.ro {
+  background: rgba(124, 92, 255, 0.1);
+  color: var(--color-accent);
+  border: 1px solid rgba(124, 92, 255, 0.2);
+}
+.dev-scope-badge.rw {
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--color-success);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+/* URI list */
+.dev-uri-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.dev-uri-row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.dev-uri-row .admin-input {
+  flex: 1;
+}
+
+.dev-uri-remove {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: var(--space-2);
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+}
+
+.dev-uri-remove:hover {
+  color: var(--color-error);
+}
+
+.dev-uri-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: var(--radius-md);
+  color: var(--color-warning);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+}
+
+.dev-uri-warning a {
+  color: var(--color-warning);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.dev-uri-warning a:hover {
+  color: var(--color-text-primary);
+}
+
+.dev-settings-save {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+/* Scope tags (inline display) */
+.dev-scope-tag {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-secondary);
+}
+
+/* ==================== Tablet App Switcher ==================== */
+
+.dev-app-switcher {
+  display: none; /* hidden on desktop — sidebar visible */
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+
+.dev-app-switcher-select {
+  flex: 1;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-deep);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  font-family: var(--font-sans);
+  cursor: pointer;
+}
+
+.dev-app-switcher-select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+/* ==================== Aggregate Usage View ==================== */
+
+.dev-usage-view {
+  padding: var(--space-8) var(--space-16);
+  overflow-y: auto;
+}
+
+/* App filter pills in usage view */
+.dev-usage-filter {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.dev-usage-filter-btn {
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.dev-usage-filter-btn:hover {
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+}
+
+.dev-usage-filter-btn.active {
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  border-color: rgba(113, 113, 122, 0.5);
+}
+
+/* ==================== Aggregate Usage Header ==================== */
+
+.dev-agg-title {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+.dev-agg-subtitle {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  margin-top: var(--space-1);
+}
+
+/* ==================== Usage Tab ==================== */
+
+.dev-usage-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-12);
+}
+
+/* Usage view uses an-* classes from analytics.css for charts + cards */
+
+/* ==================== Danger Zone Tab ==================== */
+
+.dev-danger-zone {
+  border: 1px solid rgba(239, 68, 68, 0.15);
+  border-radius: var(--radius-xl);
+  padding: var(--space-8);
+  background: rgba(239, 68, 68, 0.02);
+}
+
+.dev-danger-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-error);
+  margin-bottom: var(--space-2);
+}
+
+.dev-danger-desc {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  line-height: var(--leading-normal);
+  margin-bottom: var(--space-6);
+}
+
+.dev-danger-confirm {
+  display: none;
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid rgba(239, 68, 68, 0.1);
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+}
+
+.dev-danger-confirm.show {
+  display: block;
+}
+
+/* Danger button */
+.dev-btn-danger {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: var(--color-error);
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-family: var(--font-sans);
+}
+
+.dev-btn-danger:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.dev-btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ==================== Show-Once Secret Warning ==================== */
+
+.dev-secret-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  background: rgba(245, 158, 11, 0.06);
+  border: 1px solid rgba(245, 158, 11, 0.15);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-6);
+  margin-bottom: var(--space-6);
+}
+
+.dev-secret-warning-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--color-warning);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.dev-secret-warning-text {
+  font-size: var(--text-xs);
+  color: var(--color-warning);
+  line-height: var(--leading-normal);
+}
+
+/* ==================== Modal (Create App + Show-Once) ==================== */
+
+.dev-modal-subtitle {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-relaxed);
+  margin-bottom: var(--space-6);
+}
+
+/* ==================== Toast ==================== */
+
+.dev-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-family: var(--font-sans);
+  z-index: 10000;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+
+.dev-toast.show {
+  opacity: 1;
+}
+
+/* ==================== Tablet ==================== */
+
+@media (max-width: 1024px) {
+  .dev-sidebar {
+    display: none;
+  }
+
+  .dev-app-switcher {
+    display: flex;
+  }
+
+  .dev-detail-content {
+    padding: var(--space-8) var(--space-10);
+  }
+}
+
+/* ==================== Mobile ==================== */
+
+.dev-mobile-bar {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .dev-shell {
+    padding-top: 48px;
+  }
+
+  /* Hide app sidebar on mobile, show nav sidebar only */
+  .dev-sidebar {
+    display: none;
+  }
+
+  .dev-nav-sidebar {
+    width: 48px;
+    min-width: 48px;
+    padding: var(--space-3) 0;
+  }
+
+  .dev-nav-item {
+    width: 40px;
+    padding: var(--space-2) var(--space-1);
+    font-size: 8px;
+  }
+
+  /* Mobile back bar */
+  .dev-mobile-bar {
+    display: none;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-6);
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg-card);
+  }
+
+  .dev-shell.detail-active .dev-mobile-bar {
+    display: flex;
+  }
+
+  .dev-mobile-back {
+    background: none;
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    padding: var(--space-2);
+    display: flex;
+    align-items: center;
+    border-radius: var(--radius-sm);
+  }
+
+  .dev-mobile-back:hover {
+    color: var(--color-text-primary);
+  }
+
+  .dev-mobile-app-name {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--color-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .dev-detail-content {
+    padding: var(--space-6) var(--space-8);
+  }
+
+  .dev-scopes-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dev-rotate-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

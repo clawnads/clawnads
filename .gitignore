@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Data (contains token hashes, agent wallets, analytics DB)
+data/
+
+# Environment / secrets
+.env
+.env.local
+.env.production
+!.env.example
+
+# 3D models (178MB+ GLBs — too large for git, deployed via scp)
+public/models/
+
+# Raw Meshy AI model exports
+meshy-*/
+
+# Audio files
+public/trading-floor/*.mp3
+
+# OS files
+.DS_Store
+*.DS_Store
+
+# Editor
+*.swp
+*.swo
+*~
+
+# Temp deploy artifacts
+/tmp/
+*.tar.gz
+.claude/settings.local.json

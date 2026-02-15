@@ -1,0 +1,1375 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Test App — Clawnads OAuth</title>
+  <link rel="icon" type="image/svg+xml" href="/clawnads-favicon-white.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    html, body { margin: 0; min-height: 100vh; background: var(--color-bg-deep); }
+    body { color: var(--color-text-primary); font-family: var(--font-sans); display: flex; flex-direction: column; }
+
+    /* Header */
+    .pg-header {
+      display: flex; align-items: center; gap: var(--space-4);
+      padding: var(--space-8) var(--space-16);
+      border-bottom: 1px solid var(--color-border);
+    }
+    .pg-header img { height: 24px; width: auto; opacity: 0.4; }
+    .pg-header-sep { color: var(--color-text-muted); font-size: var(--text-lg); }
+    .pg-header-label { font-size: var(--text-md); font-weight: 600; color: var(--color-text-secondary); }
+
+    /* Tabs */
+    .pg-tabs {
+      display: flex; gap: 0;
+      border-bottom: 1px solid var(--color-border);
+      padding: 0 var(--space-16);
+    }
+    .pg-tab {
+      padding: var(--space-5) var(--space-8);
+      font-size: var(--text-sm); font-weight: 500; color: var(--color-text-tertiary);
+      cursor: pointer; border: none; background: none; font-family: var(--font-sans);
+      border-bottom: 2px solid transparent; margin-bottom: -1px;
+      transition: color 0.15s;
+    }
+    .pg-tab:hover { color: var(--color-text-secondary); }
+    .pg-tab.active { color: var(--color-text-primary); border-bottom-color: var(--color-accent); }
+
+    /* Tab content */
+    .pg-tab-content { display: none; flex: 1; }
+    .pg-tab-content.active { display: flex; flex-direction: column; }
+
+    .pg-container {
+      max-width: 720px; margin: 0 auto; width: 100%;
+      padding: var(--space-12) var(--space-16);
+      box-sizing: border-box;
+    }
+    .pg-title { font-size: var(--text-xl); font-weight: 700; margin-bottom: var(--space-2); }
+    .pg-subtitle { font-size: var(--text-sm); color: var(--color-text-tertiary); margin-bottom: var(--space-12); line-height: var(--leading-relaxed); }
+
+    /* ==================== Login Tab ==================== */
+    .login-centered {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: var(--space-16);
+      min-height: 400px;
+    }
+    .login-card {
+      text-align: center; max-width: 400px; width: 100%;
+    }
+    .login-icon { margin-bottom: var(--space-8); }
+    .login-icon img { width: 64px; height: auto; opacity: 0.5; }
+    .login-heading {
+      font-size: var(--text-lg); font-weight: 700;
+      margin-bottom: var(--space-3);
+    }
+    .login-desc {
+      font-size: var(--text-sm); color: var(--color-text-tertiary);
+      line-height: var(--leading-relaxed);
+      margin-bottom: var(--space-10);
+    }
+
+    /* Authorize Agent button */
+    .btn-claw-login {
+      display: inline-flex; align-items: center; justify-content: center; gap: var(--space-3);
+      background: var(--color-text-primary); color: var(--color-bg-deep);
+      border: none; padding: var(--space-5) var(--space-10);
+      font-weight: 600; font-size: var(--text-md); font-family: var(--font-sans);
+      border-radius: var(--radius-pill); text-decoration: none; cursor: pointer;
+      transition: background var(--transition-fast);
+    }
+    .btn-claw-login:hover { background: var(--color-text-secondary); }
+    .btn-claw-login img { width: 28px; height: 28px; }
+
+    /* Logged-in state */
+    .login-profile {
+      text-align: center; max-width: 400px; width: 100%;
+    }
+    .login-profile-avatar {
+      width: 72px; height: 72px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--color-accent), #a855f7);
+      display: flex; align-items: center; justify-content: center;
+      font-size: var(--text-2xl); font-weight: 700; color: white;
+      margin: 0 auto var(--space-6); overflow: hidden;
+    }
+    .login-profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .login-profile-name {
+      font-size: var(--text-lg); font-weight: 700; margin-bottom: var(--space-1);
+    }
+    .login-profile-wallet {
+      font-size: var(--text-xs); font-family: var(--font-mono);
+      color: var(--color-text-tertiary); margin-bottom: var(--space-8);
+    }
+    .login-profile-scopes {
+      display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2);
+      margin-bottom: var(--space-8);
+    }
+    .login-scope-badge {
+      font-size: var(--text-xs); font-weight: 500;
+      padding: var(--space-1) var(--space-4);
+      background: rgba(124, 92, 255, 0.12); border: 1px solid rgba(124, 92, 255, 0.25);
+      color: var(--color-accent); border-radius: var(--radius-pill);
+    }
+    .login-profile-info {
+      background: var(--color-bg-card); border: 1px solid var(--color-border);
+      border-radius: var(--radius-xl); text-align: left;
+      overflow: hidden;
+    }
+    .login-info-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: var(--space-4) var(--space-6);
+      border-bottom: 1px solid var(--color-border);
+    }
+    .login-info-row:last-child { border-bottom: none; }
+    .login-info-label { font-size: var(--text-xs); color: var(--color-text-muted); }
+    .login-info-value { font-size: var(--text-xs); font-family: var(--font-mono); color: var(--color-text-secondary); }
+    .login-btn-logout {
+      display: inline-flex; align-items: center; gap: var(--space-2);
+      margin-top: var(--space-8);
+      padding: var(--space-3) var(--space-8);
+      background: none; border: 1px solid var(--color-border);
+      border-radius: var(--radius-pill); color: var(--color-text-tertiary);
+      font-size: var(--text-xs); font-weight: 600; font-family: var(--font-sans);
+      cursor: pointer;
+    }
+    .login-btn-logout:hover { color: var(--color-text-secondary); border-color: var(--color-text-muted); }
+
+    /* ==================== Playground Tab ==================== */
+    /* Steps */
+    .pg-step {
+      background: var(--color-bg-card);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-xl);
+      margin-bottom: var(--space-8);
+      overflow: hidden;
+    }
+    .pg-step-header {
+      display: flex; align-items: center; gap: var(--space-4);
+      padding: var(--space-6) var(--space-8);
+      cursor: pointer; user-select: none;
+    }
+    .pg-step-header:hover { background: var(--color-bg-elevated); }
+    .pg-step-num {
+      width: 24px; height: 24px; border-radius: 50%;
+      background: var(--color-bg-elevated); border: 1px solid var(--color-border-subtle);
+      display: flex; align-items: center; justify-content: center;
+      font-size: var(--text-xs); font-weight: 700; color: var(--color-text-tertiary);
+      flex-shrink: 0;
+    }
+    .pg-step-num.done { background: var(--color-success); color: white; border-color: var(--color-success); }
+    .pg-step-num.active { background: var(--color-accent); color: white; border-color: var(--color-accent); }
+    .pg-step-title { font-size: var(--text-md); font-weight: 600; flex: 1; }
+    .pg-step-chevron {
+      width: 16px; height: 16px; color: var(--color-text-muted);
+      transition: transform 0.15s ease;
+    }
+    .pg-step.open .pg-step-chevron { transform: rotate(180deg); }
+
+    .pg-step-body {
+      display: none; padding: var(--space-6) var(--space-8); padding-top: 0;
+      border-top: 1px solid var(--color-border);
+    }
+    .pg-step.open .pg-step-body { display: block; padding-top: var(--space-6); }
+
+    /* Form elements */
+    .pg-field { margin-bottom: var(--space-6); }
+    .pg-label {
+      display: block; font-size: var(--text-xs); font-weight: 600;
+      color: var(--color-text-tertiary); text-transform: uppercase;
+      letter-spacing: 0.06em; margin-bottom: var(--space-2);
+    }
+    .pg-input {
+      width: 100%; padding: var(--space-4) var(--space-6);
+      background: var(--color-bg-elevated); border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg); color: var(--color-text-primary);
+      font-family: var(--font-mono); font-size: var(--text-sm);
+      box-sizing: border-box;
+    }
+    .pg-input:focus { outline: none; border-color: var(--color-accent); }
+    .pg-info-icon {
+      cursor: help; font-size: 13px; color: var(--color-text-muted);
+      text-transform: none; letter-spacing: normal; font-weight: 400;
+    }
+    .pg-info-icon:hover { color: var(--color-text-secondary); }
+    .pg-input::placeholder { color: var(--color-text-muted); }
+
+    .pg-hint {
+      font-size: var(--text-xs); color: var(--color-text-muted);
+      margin-top: var(--space-1); line-height: var(--leading-relaxed);
+    }
+
+    /* Scope checkboxes */
+    .pg-scopes { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+    .pg-scope-chip {
+      display: flex; align-items: center; gap: var(--space-2);
+      padding: var(--space-2) var(--space-4);
+      background: var(--color-bg-elevated); border: 1px solid var(--color-border);
+      border-radius: var(--radius-pill); cursor: pointer;
+      font-size: var(--text-xs); font-weight: 500; color: var(--color-text-secondary);
+      transition: all 0.1s ease; user-select: none;
+    }
+    .pg-scope-chip.selected {
+      background: rgba(124, 92, 255, 0.15); border-color: var(--color-accent);
+      color: var(--color-accent);
+    }
+    .pg-scope-chip:hover { border-color: var(--color-text-muted); }
+    .pg-scope-chip input { display: none; }
+
+    /* Buttons */
+    .pg-btn {
+      display: inline-flex; align-items: center; gap: var(--space-3);
+      padding: var(--space-4) var(--space-8);
+      background: var(--color-accent); color: white;
+      border: none; border-radius: var(--radius-pill);
+      font-family: var(--font-sans); font-size: var(--text-sm); font-weight: 600;
+      cursor: pointer; transition: background 0.15s;
+    }
+    .pg-btn:hover { background: var(--color-accent-hover); }
+    .pg-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .pg-btn-secondary {
+      background: var(--color-bg-elevated); color: var(--color-text-secondary);
+      border: 1px solid var(--color-border);
+    }
+    .pg-btn-secondary:hover { color: var(--color-text-primary); border-color: var(--color-text-muted); }
+
+    /* Code blocks */
+    .pg-code-wrap {
+      background: var(--color-bg-elevated); border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg); padding: var(--space-5) var(--space-6);
+      margin: var(--space-4) 0; position: relative;
+      max-height: 280px; overflow-y: auto;
+    }
+    .pg-code {
+      font-family: var(--font-mono); font-size: var(--text-xs);
+      color: var(--color-text-secondary); white-space: pre-wrap; word-break: break-all;
+      line-height: var(--leading-relaxed);
+    }
+    .pg-code-copy {
+      position: absolute; top: var(--space-3); right: var(--space-3);
+      padding: var(--space-1) var(--space-3);
+      background: var(--color-bg-card); border: 1px solid var(--color-border);
+      border-radius: var(--radius-md); color: var(--color-text-muted);
+      font-size: var(--text-xs); cursor: pointer; font-family: var(--font-sans);
+    }
+    .pg-code-copy:hover { color: var(--color-text-secondary); }
+
+    /* Result badges */
+    .pg-result {
+      display: flex; align-items: center; gap: var(--space-3);
+      padding: var(--space-4) var(--space-6);
+      border-radius: var(--radius-lg); margin: var(--space-4) 0;
+      font-size: var(--text-sm);
+    }
+    .pg-result.success { background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.25); color: var(--color-success); }
+    .pg-result.error { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25); color: var(--color-error); }
+
+    /* API test panel */
+    .pg-api-row {
+      display: flex; align-items: center; gap: var(--space-3);
+      padding: var(--space-4) 0;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .pg-api-row:last-child { border-bottom: none; }
+    .pg-api-method {
+      font-size: var(--text-xs); font-weight: 700; font-family: var(--font-mono);
+      color: var(--color-success); flex-shrink: 0; width: 40px;
+    }
+    .pg-api-method.post { color: var(--color-warning); }
+    .pg-api-path {
+      font-size: var(--text-sm); font-family: var(--font-mono); color: var(--color-text-secondary);
+      flex: 1;
+    }
+    .pg-api-btn {
+      padding: var(--space-2) var(--space-4);
+      background: var(--color-bg-elevated); border: 1px solid var(--color-border);
+      border-radius: var(--radius-md); color: var(--color-text-tertiary);
+      font-size: var(--text-xs); font-weight: 600; cursor: pointer;
+      font-family: var(--font-sans);
+    }
+    .pg-api-btn:hover { color: var(--color-text-primary); border-color: var(--color-text-muted); }
+
+    /* Response viewer */
+    .pg-response { margin-top: var(--space-4); }
+    .pg-response-header {
+      display: flex; align-items: center; gap: var(--space-3);
+      margin-bottom: var(--space-2);
+    }
+    .pg-response-status {
+      font-size: var(--text-xs); font-weight: 700; font-family: var(--font-mono);
+      padding: var(--space-1) var(--space-3);
+      border-radius: var(--radius-md);
+    }
+    .pg-response-status.ok { background: rgba(34, 197, 94, 0.15); color: var(--color-success); }
+    .pg-response-status.err { background: rgba(239, 68, 68, 0.15); color: var(--color-error); }
+
+    /* URL preview */
+    .pg-url-preview {
+      background: var(--color-bg-deep); border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg); padding: var(--space-4) var(--space-6);
+      font-family: var(--font-mono); font-size: var(--text-xs);
+      color: var(--color-text-secondary); word-break: break-all;
+      line-height: var(--leading-relaxed); margin: var(--space-4) 0;
+    }
+    .pg-url-param { color: var(--color-accent); }
+    .pg-url-base { color: var(--color-text-muted); }
+
+    /* PKCE values */
+    .pg-pkce-row { display: flex; gap: var(--space-4); margin-bottom: var(--space-4); }
+    .pg-pkce-row > div { flex: 1; }
+
+    /* Loading spinner */
+    .pg-spinner {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,0.2);
+      border-top-color: white; border-radius: 50%;
+      animation: pg-spin 0.6s linear infinite;
+    }
+    @keyframes pg-spin { to { transform: rotate(360deg); } }
+
+    /* ==================== Skill.md Tab ==================== */
+    .skill-container {
+      max-width: 720px; margin: 0 auto; width: 100%;
+      padding: var(--space-12) var(--space-16);
+      box-sizing: border-box;
+    }
+    .skill-content {
+      background: var(--color-bg-card); border: 1px solid var(--color-border);
+      border-radius: var(--radius-xl); padding: var(--space-8);
+    }
+    .skill-content h1 { font-size: var(--text-lg); font-weight: 700; margin: 0 0 var(--space-6); }
+    .skill-content h2 {
+      font-size: var(--text-md); font-weight: 600; margin: var(--space-8) 0 var(--space-4);
+      color: var(--color-text-secondary);
+    }
+    .skill-content p {
+      font-size: var(--text-sm); color: var(--color-text-secondary);
+      line-height: var(--leading-relaxed); margin: 0 0 var(--space-4);
+    }
+    .skill-content pre {
+      background: var(--color-bg-elevated); border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg); padding: var(--space-5) var(--space-6);
+      font-family: var(--font-mono); font-size: var(--text-xs);
+      color: var(--color-text-secondary); overflow-x: auto;
+      line-height: var(--leading-relaxed); margin: var(--space-4) 0;
+    }
+    .skill-content ul {
+      margin: 0 0 var(--space-4); padding-left: var(--space-8);
+    }
+    .skill-content li {
+      font-size: var(--text-sm); color: var(--color-text-secondary);
+      line-height: var(--leading-relaxed); margin-bottom: var(--space-2);
+    }
+    .skill-content code {
+      font-family: var(--font-mono); font-size: var(--text-xs);
+      background: var(--color-bg-elevated); padding: 1px 5px;
+      border-radius: var(--radius-sm); color: var(--color-accent);
+    }
+    .skill-copy-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: var(--space-4);
+    }
+    .skill-copy-bar span {
+      font-size: var(--text-sm); font-weight: 600; color: var(--color-text-secondary);
+    }
+
+    /* Button preview in login tab */
+    .login-btn-preview {
+      background: var(--color-bg-card); border: 1px solid var(--color-border);
+      border-radius: var(--radius-xl); padding: var(--space-6) var(--space-8);
+      margin-top: var(--space-12);
+    }
+    .login-btn-preview-label {
+      font-size: var(--text-xs); color: var(--color-text-muted);
+      text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600;
+      margin-bottom: var(--space-4);
+    }
+
+    /* Toast */
+    .pg-toast {
+      position: fixed; bottom: 24px; left: 50%;
+      transform: translateX(-50%) translateY(8px);
+      display: flex; align-items: center; gap: var(--space-3);
+      background: var(--color-bg-elevated); border: 1px solid var(--color-border);
+      color: var(--color-text-primary);
+      padding: var(--space-4) var(--space-8);
+      border-radius: var(--radius-pill);
+      font-size: var(--text-sm); font-weight: 500; font-family: var(--font-sans);
+      z-index: 10000; opacity: 0;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      pointer-events: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+    .pg-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .pg-toast-icon {
+      width: 16px; height: 16px; border-radius: 50%;
+      background: var(--color-success); color: var(--color-bg-deep);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; flex-shrink: 0;
+    }
+
+    @media (max-width: 640px) {
+      .pg-container, .skill-container { padding: var(--space-8) var(--space-6); }
+      .pg-header { padding: var(--space-6) var(--space-8); }
+      .pg-tabs { padding: 0 var(--space-8); }
+      .pg-pkce-row { flex-direction: column; gap: var(--space-3); }
+      .login-centered { padding: var(--space-8); }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="pg-header">
+    <a href="https://claw.tormund.io" style="display:flex;"><img src="/clawnads-logo-white.svg" alt="Clawnads"></a>
+    <span class="pg-header-sep">&middot;</span>
+    <span class="pg-header-label">Test App</span>
+  </header>
+
+  <!-- Tabs -->
+  <div class="pg-tabs">
+    <button class="pg-tab active" data-tab="login" onclick="switchTab('login')">Login</button>
+    <button class="pg-tab" data-tab="playground" onclick="switchTab('playground')">Playground</button>
+    <button class="pg-tab" data-tab="skill" onclick="switchTab('skill')">Skill.md</button>
+    <button class="pg-tab" data-tab="about" onclick="switchTab('about')">About</button>
+  </div>
+
+  <!-- ==================== Login Tab ==================== -->
+  <div class="pg-tab-content active" id="tab-login">
+    <div class="login-centered">
+      <!-- Not logged in -->
+      <div class="login-card" id="login-card">
+        <div class="login-icon"><img src="/happy-crab-blue.svg" alt=""></div>
+        <div class="login-heading">Test App</div>
+        <div class="login-desc">This is a sample dApp that connects to Clawnads via OAuth. Sign in to authorize an agent.</div>
+        <a href="#" class="btn-claw-login" id="btn-login" onclick="loginWithClawnads(); return false;">
+          <img src="/happy-crab-blue.svg" alt="">
+          Authorize Agent
+        </a>
+      </div>
+
+      <!-- Access denied -->
+      <div class="login-card" id="login-denied" style="display:none;">
+        <div class="login-icon"><svg width="64" height="35" viewBox="0 0 100 55" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:0.35;"><path d="M31.2099 45.0527C31.3816 45.1109 31.3138 45.0772 31.455 45.1611C32.589 45.8338 33.9277 46.2766 35.1815 46.668C34.9152 47.0227 34.2144 47.7101 33.8407 48.1631C31.988 50.4053 31.1523 52.0517 30.078 54.6768C30.0466 54.7368 29.9425 54.8509 29.8944 54.9082C29.6623 55.008 29.5453 55.0327 29.3007 54.9521C26.7826 54.1202 26.2768 50.8331 27.1229 48.6533C27.8846 46.6925 29.4041 45.8487 31.2099 45.0527ZM68.4852 45.1162C69.0621 45.0313 70.4841 45.959 70.994 46.3555C73.2311 48.0924 73.9772 51.4654 72.1386 53.7686C71.8237 54.1626 70.946 54.9875 70.3876 54.9941C70.1555 54.9966 70.0611 54.9048 69.911 54.751C69.638 54.2115 69.4323 53.5146 69.1386 52.9385C67.8436 50.3981 66.7678 48.5855 64.6503 46.7012C65.9883 46.2882 67.3058 45.8796 68.4852 45.1162ZM75.0976 41.0518C77.6372 41.2724 79.9589 41.8337 81.8173 43.6602C84.0285 45.8334 84.4932 49.2289 82.1864 51.5244C81.7756 51.934 81.3041 52.3176 80.9091 51.668C80.7124 51.3342 80.2057 50.7078 79.9491 50.3447C77.9262 47.488 74.8661 44.6508 71.4413 43.6699C72.4779 43.2153 73.1779 42.6328 74.0526 41.916C74.4626 41.5805 74.6178 41.3382 75.0976 41.0518ZM24.953 41.1348C25.2018 41.3081 25.712 41.8073 25.994 42.043C26.8766 42.7798 27.5021 43.1421 28.5184 43.6533C25.1888 44.6816 22.494 46.9576 20.4198 49.7178C20.1465 50.0822 19.9759 50.3986 19.6708 50.7539L19.6093 50.8242C19.3237 51.0898 19.1644 51.66 18.7499 51.9531C18.4278 51.9673 18.1104 51.9103 17.8778 51.6797C14.6291 48.4648 16.6499 43.7235 20.4257 42.0674C21.7284 41.4963 22.1907 41.3268 23.6132 41.1611C24.0699 41.107 24.4952 41.1264 24.953 41.1348ZM50.412 21.7686C53.8394 21.7239 58.3896 22.4166 61.6933 23.4268C65.9905 24.9067 70.3972 27.0117 73.7499 30.1299C76.8457 33.0097 78.0987 34.494 74.744 37.8359C70.2383 42.3231 64.4548 44.3785 58.3495 45.5908C55.5323 46.1503 52.3726 46.1943 49.5321 46.1885C45.1317 46.1735 41.0227 45.7038 36.8075 44.4365C31.8682 42.951 25.0118 39.5832 23.1005 34.5C23.4202 32.8506 24.6728 31.4788 25.8983 30.3223C29.2819 27.1293 33.7394 24.8807 38.1278 23.4404C39.442 22.9808 40.9113 22.8445 42.2343 22.5049C45.0465 21.7828 47.5417 21.7667 50.412 21.7686ZM58.2714 36.7139C53.1801 33.6592 46.8197 33.6593 41.7284 36.7139C41.018 37.1401 40.7875 38.0621 41.2138 38.7725C41.6401 39.4825 42.5612 39.7122 43.2714 39.2861C47.4127 36.8014 52.5871 36.8013 56.7284 39.2861C57.4386 39.7122 58.3597 39.4825 58.786 38.7725C59.2122 38.0621 58.9817 37.1401 58.2714 36.7139ZM87.0839 0C92.2005 0.461954 97.6246 4.65656 99.1727 9.55762C99.4757 10.5174 100.012 12.7205 99.9999 13.7236C99.8876 22.8356 91.6694 29.0257 83.3222 30.3164C80.1773 30.8026 79.3214 31.1331 76.5575 29.6787C76.208 29.4223 75.9171 29.2185 75.747 28.8213C75.8109 28.4152 76.4329 28.1363 76.828 27.9307C78.3952 27.1126 79.3915 25.4821 80.5927 24.458C79.8025 23.6312 79.3988 22.8348 78.8427 21.8477C76.0729 16.926 76.379 9.33155 80.6288 5.25586C81.4663 7.83061 84.0478 12.8462 86.3554 14.2852C86.9364 14.1176 87.3281 12.3194 87.4335 11.7666C88.1696 7.90054 87.8807 3.83257 87.0839 0ZM12.5751 0.0224609C12.674 0.0188039 12.7036 0.0419007 12.8056 0.0742188C12.8109 0.105027 12.4873 2.15371 12.4237 2.41699C11.9339 4.44521 11.9777 13.3766 13.5809 14.2666C13.9333 14.0704 14.3942 13.5678 14.6747 13.2617C16.8563 10.8818 18.1966 8.25826 19.329 5.29004C20.1374 6.22699 21.0198 7.43298 21.5643 8.54297C24.0217 13.5521 22.9833 20.4614 19.1913 24.5205C20.1645 25.3207 20.9902 26.6263 22.1073 27.4258C22.6294 27.799 23.8926 28.3973 24.0468 28.7637C23.9779 29.0606 23.8152 29.1944 23.6112 29.4258C20.8948 31.2226 19.7045 30.7652 16.7216 30.3389C10.3594 29.4295 3.61264 25.3576 1.07411 19.2295C-2.55085 10.4783 3.42841 1.30598 12.5751 0.0224609ZM62.164 8.62793C65.1164 8.21829 67.8443 10.2775 68.2694 13.2363C68.6944 16.1954 66.6565 18.9439 63.7089 19.3867C60.7381 19.8328 57.9722 17.7685 57.5438 14.7861C57.1159 11.804 59.1885 9.04114 62.164 8.62793ZM36.1874 8.64844C39.1466 8.16434 41.9354 10.1844 42.4081 13.1543C42.8805 16.1242 40.8577 18.9139 37.8954 19.3779C34.9473 19.8393 32.1821 17.8218 31.7118 14.8662C31.2419 11.911 33.243 9.13068 36.1874 8.64844ZM37.0683 11.2412C35.6404 11.2416 34.4827 12.4037 34.4823 13.8359C34.4824 15.2683 35.6403 16.4303 37.0683 16.4307C38.4963 16.4305 39.655 15.2684 39.6552 13.8359C39.6548 12.4036 38.4962 11.2414 37.0683 11.2412ZM62.9306 11.2412C61.5023 11.2413 60.3447 12.4033 60.3446 13.8359C60.3448 15.2685 61.5024 16.4296 62.9306 16.4297C64.3588 16.4297 65.5164 15.2686 65.5165 13.8359C65.5165 12.4032 64.3589 11.2412 62.9306 11.2412Z" fill="white"/></svg></div>
+        <div class="login-heading">Access Denied</div>
+        <div class="login-desc" id="login-denied-msg">The operator denied the authorization request.</div>
+        <a href="#" class="btn-claw-login" id="btn-retry" onclick="loginWithClawnads(); return false;" style="opacity:0.7;">
+          <img src="/happy-crab-blue.svg" alt="">
+          Try Again
+        </a>
+      </div>
+
+      <!-- Success (brief) -->
+      <div class="login-card" id="login-success" style="display:none;">
+        <div class="login-icon"><img src="/happy-crab-blue.svg" alt="" style="opacity:0.7;"></div>
+        <div class="login-heading" style="color:var(--color-success);">Connected!</div>
+        <div class="login-desc" id="login-success-msg">Agent authorized successfully.</div>
+      </div>
+
+      <!-- Logged in -->
+      <div class="login-profile" id="login-profile" style="display:none;">
+        <div class="login-profile-avatar" id="profile-avatar"></div>
+        <div class="login-profile-name" id="profile-name"></div>
+        <div class="login-profile-wallet" id="profile-wallet"></div>
+        <div class="login-profile-scopes" id="profile-scopes"></div>
+        <div class="login-profile-info" id="profile-info"></div>
+        <button class="login-btn-logout" onclick="logout()">Sign out</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== Playground Tab ==================== -->
+  <div class="pg-tab-content" id="tab-playground">
+    <div class="pg-container">
+      <h1 class="pg-title">OAuth Playground</h1>
+      <p class="pg-subtitle">Debug the full OAuth 2.0 flow step by step. Enter your dApp credentials, walk through authorization, and test API calls with the resulting token.</p>
+
+      <!-- Login button preview -->
+      <div class="login-btn-preview">
+        <div class="login-btn-preview-label">Button Preview</div>
+        <div style="display:flex;align-items:center;justify-content:center;padding:var(--space-6) 0;">
+          <a href="#" class="btn-claw-login" onclick="openAuthorize(); return false;">
+            <img src="/happy-crab-blue.svg" alt="">
+            Authorize Agent
+          </a>
+        </div>
+        <div class="pg-code-wrap" style="margin:var(--space-4) 0 0;">
+          <button class="pg-code-copy" onclick="copyText(document.getElementById('btn-snippet').textContent)">Copy</button>
+          <code class="pg-code" id="btn-snippet">&lt;a href="https://tormund.io/oauth/authorize?client_id=YOUR_ID&amp;redirect_uri=YOUR_URI&amp;response_type=code&amp;scope=balance+profile&amp;code_challenge=CHALLENGE&amp;code_challenge_method=S256" class="btn-claw-login"&gt;
+  &lt;img src="https://tormund.io/happy-crab-blue.svg" width="28" height="28" alt=""&gt;
+  Authorize Agent
+&lt;/a&gt;</code>
+        </div>
+      </div>
+
+      <!-- Step 1: Configure -->
+      <div class="pg-step open" id="step-1" style="margin-top:var(--space-8);">
+        <div class="pg-step-header" onclick="toggleStep(1)">
+          <div class="pg-step-num active" id="step-1-num">1</div>
+          <div class="pg-step-title">Configure your dApp</div>
+          <svg class="pg-step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="pg-step-body">
+          <div class="pg-field">
+            <label class="pg-label">Client ID</label>
+            <input class="pg-input" id="client-id" placeholder="dapp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+            <div class="pg-hint">From the Developer Portal &rarr; Apps &rarr; your app's Credentials tab</div>
+          </div>
+          <div class="pg-field">
+            <label class="pg-label" style="display:flex;align-items:center;gap:var(--space-2);">Client Secret <span class="pg-info-icon" title="Shown once on creation or rotation. Store in 1Password, env vars, or your secrets manager — never in client-side code. This playground saves it to localStorage for testing only.">&#9432;</span></label>
+            <input class="pg-input" id="client-secret" type="password" placeholder="cs_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+            <div class="pg-hint">Needed for token exchange in Step 3.</div>
+          </div>
+          <div class="pg-field">
+            <label class="pg-label">Redirect URI</label>
+            <input class="pg-input" id="redirect-uri" autocomplete="off">
+            <div class="pg-hint">Must match one of the URIs registered in your dApp settings</div>
+          </div>
+          <div class="pg-field">
+            <label class="pg-label">Agent (optional)</label>
+            <input class="pg-input" id="agent-name" placeholder="agent_name" autocomplete="off">
+            <div class="pg-hint">Pre-selects the agent. Leave empty to let the operator choose on the consent screen.</div>
+          </div>
+          <div class="pg-field">
+            <label class="pg-label">Scopes</label>
+            <div class="pg-scopes" id="scope-chips">
+              <div class="pg-hint" style="margin:0;">Save your Client ID to load registered scopes</div>
+            </div>
+            <div class="pg-hint">Configured in the <a href="https://console.tormund.io/developers" target="_blank" style="color:var(--color-accent);text-decoration:underline;">Developer Console</a> under Settings</div>
+          </div>
+          <div style="margin-top:var(--space-4);">
+            <button class="pg-btn" id="btn-save-config" onclick="saveConfig()">Save</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: Authorize -->
+      <div class="pg-step" id="step-2">
+        <div class="pg-step-header" onclick="toggleStep(2)">
+          <div class="pg-step-num" id="step-2-num">2</div>
+          <div class="pg-step-title">Authorize</div>
+          <svg class="pg-step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="pg-step-body">
+          <p style="font-size:var(--text-sm);color:var(--color-text-secondary);margin-bottom:var(--space-4);line-height:var(--leading-relaxed);">
+            Click <strong>Open Authorization</strong> to start the OAuth flow. You'll be taken to the Clawnads consent screen where the operator signs in with X and approves access.
+          </p>
+          <div style="margin-bottom:var(--space-4);">
+            <div class="pg-label" style="margin-bottom:var(--space-3);">PKCE Values (auto-generated)</div>
+            <div class="pg-pkce-row">
+              <div>
+                <div class="pg-hint" style="margin-bottom:var(--space-1);">code_verifier</div>
+                <div class="pg-code-wrap" style="max-height:none;margin:0;"><code class="pg-code" id="pkce-verifier" style="font-size:10px;"></code></div>
+              </div>
+              <div>
+                <div class="pg-hint" style="margin-bottom:var(--space-1);">code_challenge (S256)</div>
+                <div class="pg-code-wrap" style="max-height:none;margin:0;"><code class="pg-code" id="pkce-challenge" style="font-size:10px;"></code></div>
+              </div>
+            </div>
+          </div>
+          <div class="pg-label" style="margin-bottom:var(--space-2);">Authorization URL</div>
+          <div class="pg-url-preview" id="auth-url-preview">Configure Step 1 first</div>
+          <div style="display:flex;gap:var(--space-3);margin-top:var(--space-6);">
+            <button class="pg-btn" id="btn-authorize" onclick="openAuthorize()">Open Authorization</button>
+            <button class="pg-btn pg-btn-secondary" onclick="copyAuthUrl()">Copy URL</button>
+          </div>
+          <div id="auth-code-result" style="display:none;margin-top:var(--space-6);">
+            <div class="pg-result success" id="auth-result-msg"></div>
+            <div class="pg-field" style="margin-top:var(--space-4);margin-bottom:0;">
+              <label class="pg-label">Authorization Code</label>
+              <input class="pg-input" id="auth-code" readonly>
+            </div>
+          </div>
+          <div id="auth-error-result" style="display:none;margin-top:var(--space-6);">
+            <div class="pg-result error" id="auth-error-msg"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3: Exchange Token -->
+      <div class="pg-step" id="step-3">
+        <div class="pg-step-header" onclick="toggleStep(3)">
+          <div class="pg-step-num" id="step-3-num">3</div>
+          <div class="pg-step-title">Exchange for Token</div>
+          <svg class="pg-step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="pg-step-body">
+          <p style="font-size:var(--text-sm);color:var(--color-text-secondary);margin-bottom:var(--space-4);line-height:var(--leading-relaxed);">
+            Exchange the authorization code for a JWT access token. This is what your backend server would do.
+          </p>
+          <div class="pg-label" style="margin-bottom:var(--space-2);">Request</div>
+          <div class="pg-code-wrap"><code class="pg-code" id="token-request-preview">Complete Steps 1 and 2 first</code></div>
+          <button class="pg-btn" id="btn-exchange" onclick="exchangeToken()" style="margin-top:var(--space-4);" disabled>Exchange Code for Token</button>
+          <div id="token-result" style="display:none;margin-top:var(--space-6);"></div>
+        </div>
+      </div>
+
+      <!-- Step 4: Test API -->
+      <div class="pg-step" id="step-4">
+        <div class="pg-step-header" onclick="toggleStep(4)">
+          <div class="pg-step-num" id="step-4-num">4</div>
+          <div class="pg-step-title">Test API Endpoints</div>
+          <svg class="pg-step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="pg-step-body">
+          <p style="font-size:var(--text-sm);color:var(--color-text-secondary);margin-bottom:var(--space-4);line-height:var(--leading-relaxed);">
+            Use the access token to call proxy endpoints. Only scopes you granted will work.
+          </p>
+          <div class="pg-field">
+            <label class="pg-label">Access Token</label>
+            <input class="pg-input" id="access-token" placeholder="Paste or auto-filled from Step 3" style="font-size:10px;">
+          </div>
+          <div id="api-endpoints">
+            <div class="pg-api-row"><span class="pg-api-method">GET</span><span class="pg-api-path">/oauth/proxy/balance</span><button class="pg-api-btn" onclick="callApi('GET', '/oauth/proxy/balance')">Send</button></div>
+            <div class="pg-api-row"><span class="pg-api-method">GET</span><span class="pg-api-path">/oauth/proxy/profile</span><button class="pg-api-btn" onclick="callApi('GET', '/oauth/proxy/profile')">Send</button></div>
+            <div class="pg-api-row"><span class="pg-api-method">GET</span><span class="pg-api-path">/oauth/userinfo</span><button class="pg-api-btn" onclick="callApi('GET', '/oauth/userinfo')">Send</button></div>
+            <div class="pg-api-row"><span class="pg-api-method post">POST</span><span class="pg-api-path">/oauth/proxy/sign</span><button class="pg-api-btn" onclick="callApi('POST', '/oauth/proxy/sign', {message:'Hello from Test App'})">Send</button></div>
+          </div>
+          <div class="pg-response" id="api-response" style="display:none;">
+            <div class="pg-response-header">
+              <span class="pg-response-status" id="api-status"></span>
+              <span style="font-size:var(--text-xs);color:var(--color-text-muted);" id="api-timing"></span>
+            </div>
+            <div class="pg-code-wrap">
+              <button class="pg-code-copy" onclick="copyText(document.getElementById('api-body').textContent)">Copy</button>
+              <code class="pg-code" id="api-body"></code>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== Skill.md Tab ==================== -->
+  <div class="pg-tab-content" id="tab-skill">
+    <div class="skill-container">
+      <div id="skill-empty" style="text-align:center;padding:var(--space-16) 0;">
+        <div style="font-size:var(--text-sm);color:var(--color-text-muted);margin-bottom:var(--space-4);">No dApp configured yet</div>
+        <div style="font-size:var(--text-xs);color:var(--color-text-muted);line-height:var(--leading-relaxed);">Enter your Client ID in the Playground tab and click Save.<br>The skill doc is generated from your dApp registration.</div>
+      </div>
+      <div id="skill-loaded" style="display:none;">
+        <div class="skill-copy-bar">
+          <span>SKILL.md</span>
+          <div style="display:flex;gap:var(--space-2);">
+            <button class="pg-btn pg-btn-secondary" style="padding:var(--space-2) var(--space-5);font-size:var(--text-xs);" onclick="refreshSkillDoc()" id="btn-skill-refresh" title="Re-fetch from Developer Console">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+            </button>
+            <button class="pg-btn pg-btn-secondary" style="padding:var(--space-2) var(--space-6);font-size:var(--text-xs);" onclick="copyText(document.getElementById('skill-raw').textContent.trim())">Copy</button>
+          </div>
+        </div>
+        <div class="pg-code-wrap" style="max-height:none;">
+          <code class="pg-code" id="skill-display"></code>
+        </div>
+        <p class="pg-hint" style="margin-top:var(--space-4);">Copy this and give it to your agent. It&rsquo;s generated from your dApp registration on the Developer Portal.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== About Tab ==================== -->
+  <div class="pg-tab-content" id="tab-about">
+    <div class="skill-container">
+      <div class="skill-content">
+        <h1>What is this?</h1>
+        <p>Test App is a sample third-party dApp that connects to Clawnads agents via OAuth 2.0. It demonstrates the full "Authorize Agent" flow that any developer can integrate into their app.</p>
+
+        <h2>How it works</h2>
+        <ul>
+          <li>A developer registers their app on the <a href="https://console.tormund.io/developers" style="color:var(--color-accent);">Developer Portal</a> and picks which permissions (scopes) it needs</li>
+          <li>The app shows an <strong>Authorize Agent</strong> button to the operator</li>
+          <li>Clicking it takes the operator to the Clawnads consent screen, which shows exactly what the app is requesting</li>
+          <li>The operator signs in with X, selects an agent, and approves or denies</li>
+          <li>If approved, the app gets a short-lived JWT token scoped to those permissions</li>
+        </ul>
+
+        <h2>For agents</h2>
+        <p>Agents don&rsquo;t need to understand OAuth. They just tell their operator to visit the app&rsquo;s URL. Here&rsquo;s what the skill doc looks like &mdash; it&rsquo;s this small:</p>
+        <div style="position:relative;">
+          <div class="pg-code-wrap" style="margin:var(--space-4) 0;">
+            <button class="pg-code-copy" onclick="copyText(document.getElementById('skill-raw').textContent)">Copy</button>
+            <code class="pg-code" id="skill-rendered"></code>
+          </div>
+        </div>
+
+        <h2>For developers</h2>
+        <ul>
+          <li>Register your app at <a href="https://console.tormund.io/developers" style="color:var(--color-accent);">console.tormund.io</a></li>
+          <li>Use the <strong>Playground</strong> tab here to test the full OAuth flow with your credentials</li>
+          <li>See <a href="https://claw.tormund.io/OAUTH.md" style="color:var(--color-accent);">OAUTH.md</a> for the full technical docs</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dynamic skill.md — generated from dApp registration -->
+  <pre id="skill-raw" style="display:none;"></pre>
+
+  <script>
+    // ========== State ==========
+    const SCOPES = ['balance', 'swap', 'send', 'sign', 'messages', 'profile'];
+    const BASE_URL = 'https://tormund.io';
+    // For fetch calls (token exchange, proxy endpoints) use same-origin to avoid CORS issues
+    // since test.tormund.io and tormund.io both proxy to the same Express server
+    const API_URL = '';
+
+    let selectedScopes = []; // populated from dApp registration on save/load
+    let codeVerifier = '';
+    let codeChallenge = '';
+    let stateParam = '';
+    let currentTab = 'login';
+    let cachedDapp = null; // cached dApp data for skill doc regeneration
+
+    // ========== Tab Switching ==========
+    function switchTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.pg-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+      document.querySelectorAll('.pg-tab-content').forEach(c => c.classList.remove('active'));
+      document.getElementById(`tab-${tab}`).classList.add('active');
+    }
+
+    // ========== Config Persistence (localStorage) ==========
+    async function saveConfig() {
+      const clientId = document.getElementById('client-id').value.trim();
+      const config = {
+        clientId,
+        clientSecret: document.getElementById('client-secret').value.trim(),
+        redirectUri: document.getElementById('redirect-uri').value.trim(),
+        agent: document.getElementById('agent-name').value.trim(),
+      };
+      localStorage.setItem('pg_config', JSON.stringify(config));
+      showToast('Saved');
+
+      // Fetch dApp info — this also loads scopes from the registration
+      if (clientId) await fetchDappAndGenerateSkill(clientId);
+    }
+
+    function loadConfig() {
+      try {
+        const raw = localStorage.getItem('pg_config');
+        if (!raw) return false;
+        const config = JSON.parse(raw);
+        if (config.clientId) document.getElementById('client-id').value = config.clientId;
+        if (config.clientSecret) document.getElementById('client-secret').value = config.clientSecret;
+        if (config.redirectUri) document.getElementById('redirect-uri').value = config.redirectUri;
+        if (config.agent) document.getElementById('agent-name').value = config.agent;
+        // Scopes are loaded from the dApp registration, not from localStorage
+        return true;
+      } catch (e) { return false; }
+    }
+
+    // ========== Skill Doc Generation ==========
+    async function fetchDappAndGenerateSkill(clientId) {
+      try {
+        // Use relative URL — test.tormund.io and claw.tormund.io share the same server
+        const resp = await fetch(`/oauth/dapp/${clientId}`);
+        if (!resp.ok) return;
+        cachedDapp = await resp.json();
+        // Scopes come from the dApp registration — not editable in the playground
+        selectedScopes = cachedDapp.scopes || [];
+        renderScopeChips();
+        updateAuthUrl();
+        generateSkillDoc(cachedDapp);
+      } catch (e) { /* silent */ }
+    }
+
+    function generateSkillDoc(dapp) {
+      const clientId = document.getElementById('client-id').value.trim();
+      const connectUrl = `https://tormund.io/oauth/connect/${clientId}`;
+      const scopeLines = dapp.scopes.map(s => {
+        const desc = dapp.scopeDescriptions?.[s] || s;
+        return `- **${s}** — ${desc}`;
+      }).join('\n');
+      const skillMd = `---
+name: ${dapp.name.toLowerCase().replace(/\s+/g, '-')}
+description: ${dapp.description || dapp.name}
+url: ${connectUrl}
+scopes: ${dapp.scopes.join(', ')}
+---
+
+# ${dapp.name}
+
+${dapp.description || dapp.name}
+
+## Connect (Login with Clawnads)
+
+This dApp uses **Login with Clawnads** — an OAuth flow where your operator approves access on the Clawnads consent screen. You don't need to do anything technical — just relay the authorization link below to your operator.
+
+**Prerequisite:** Your operator must have linked their X account to your agent. If they haven't, generate a claim link first: \`POST /agents/YOUR_NAME/auth/claim\` and send them the URL (replace localhost with \`https://claw.tormund.io\`).
+
+**What to do:** Send your operator this message:
+
+> **${dapp.name}** wants to connect with the following permissions. Authorize here: [tormund.io/oauth/connect](${connectUrl})
+
+Your operator opens the link, signs in with X, reviews the requested permissions, and approves or denies. That's it — Clawnads handles the rest.
+
+### Requested permissions
+
+${scopeLines}
+
+All dApp transactions count against your same daily trading cap — no dApp can bypass your limits. You can revoke access anytime: \`POST /oauth/revoke\` with \`{ "client_id": "CLIENT_ID" }\` using your bearer token.`;
+
+      document.getElementById('skill-raw').textContent = skillMd;
+      // Update all displays
+      const display = document.getElementById('skill-display');
+      if (display) display.textContent = skillMd;
+      const rendered = document.getElementById('skill-rendered');
+      if (rendered) rendered.textContent = skillMd;
+      // Show loaded state, hide empty
+      const emptyEl = document.getElementById('skill-empty');
+      const loadedEl = document.getElementById('skill-loaded');
+      if (emptyEl) emptyEl.style.display = 'none';
+      if (loadedEl) loadedEl.style.display = '';
+    }
+
+    async function refreshSkillDoc() {
+      const clientId = document.getElementById('client-id').value.trim();
+      if (!clientId) { showToast('No Client ID configured', 'error'); return; }
+      const btn = document.getElementById('btn-skill-refresh');
+      btn.disabled = true;
+      btn.style.opacity = '0.5';
+      btn.querySelector('svg').style.animation = 'pg-spin 0.6s linear infinite';
+      try {
+        await fetchDappAndGenerateSkill(clientId);
+        showToast('Skill doc refreshed');
+      } catch (e) {
+        showToast('Failed to refresh', 'error');
+      }
+      btn.disabled = false;
+      btn.style.opacity = '';
+      btn.querySelector('svg').style.animation = '';
+    }
+
+    // ========== Init ==========
+    (async function init() {
+      renderScopeChips();
+      await generatePKCE();
+      stateParam = randomString(16);
+
+      const here = window.location.origin + '/oauth/playground/callback';
+      document.getElementById('redirect-uri').value = here;
+
+      // Load saved config from localStorage (if any)
+      const loaded = loadConfig();
+
+      // If we have a saved client ID, fetch dApp info for skill doc
+      const savedClientId = document.getElementById('client-id').value.trim();
+      if (savedClientId) fetchDappAndGenerateSkill(savedClientId);
+
+      // Check URL for callback params
+      const params = new URLSearchParams(window.location.search);
+      const returnTab = sessionStorage.getItem('pg_return_tab') || 'playground';
+
+      if (params.has('code')) {
+        if (returnTab === 'login') {
+          handleLoginCallback(params);
+        } else {
+          handleCallback(params);
+        }
+      } else if (params.has('error')) {
+        if (returnTab === 'login') {
+          handleLoginError(params);
+        } else {
+          handleCallbackError(params);
+        }
+      }
+
+      // Auto-auth: if ?autoauth=1, skip the login card and go straight to consent
+      if (!params.has('code') && !params.has('error') && params.has('autoauth')) {
+        window.history.replaceState({}, '', window.location.pathname);
+        const hasConfig = document.getElementById('client-id').value.trim() && document.getElementById('client-secret').value.trim();
+        if (hasConfig) {
+          // Wait for scopes to load from dApp registration before redirecting
+          const cid = document.getElementById('client-id').value.trim();
+          try { await fetchDappAndGenerateSkill(cid); } catch(e) {}
+          loginWithClawnads();
+          return;
+        }
+      }
+
+      // Check if we have a stored login session
+      const storedToken = sessionStorage.getItem('pg_login_token');
+      if (storedToken) {
+        showLoggedIn(storedToken);
+      }
+
+      ['client-id', 'redirect-uri', 'agent-name'].forEach(id => {
+        document.getElementById(id).addEventListener('input', updateAuthUrl);
+      });
+
+      updateAuthUrl();
+
+      // Render skill-raw into display elements (only if we have content)
+      const rawText = document.getElementById('skill-raw').textContent.trim();
+      if (rawText) {
+        const skillDisplay = document.getElementById('skill-display');
+        if (skillDisplay) skillDisplay.textContent = rawText;
+        const skillRendered = document.getElementById('skill-rendered');
+        if (skillRendered) skillRendered.textContent = rawText;
+      }
+    })();
+
+    // ========== Login Tab ==========
+    async function loginWithClawnads() {
+      const clientId = document.getElementById('client-id').value.trim();
+      const clientSecret = document.getElementById('client-secret').value.trim();
+
+      if (!clientId || !clientSecret) {
+        switchTab('playground');
+        openStep(1);
+        document.getElementById('client-id').focus();
+        showToast('Enter credentials and Save first', 'error');
+        return;
+      }
+
+      // Save that we're coming from login tab
+      sessionStorage.setItem('pg_return_tab', 'login');
+      sessionStorage.setItem('pg_code_verifier', codeVerifier);
+      sessionStorage.setItem('pg_state', stateParam);
+      sessionStorage.setItem('pg_client_id', clientId);
+      sessionStorage.setItem('pg_client_secret', clientSecret);
+      sessionStorage.setItem('pg_redirect_uri', document.getElementById('redirect-uri').value.trim());
+      sessionStorage.setItem('pg_agent', document.getElementById('agent-name').value.trim());
+      sessionStorage.setItem('pg_scopes', JSON.stringify(selectedScopes));
+
+      // Build authorize URL with login scopes
+      const redirectUri = document.getElementById('redirect-uri').value.trim();
+      const authParams = new URLSearchParams({
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        response_type: 'code',
+        scope: selectedScopes.join(' '),
+        code_challenge: codeChallenge,
+        code_challenge_method: 'S256',
+        state: stateParam,
+      });
+      const agent = document.getElementById('agent-name').value.trim();
+      if (agent) authParams.set('agent', agent);
+
+      window.location.href = `${BASE_URL}/oauth/authorize?${authParams.toString()}`;
+    }
+
+    async function handleLoginCallback(params) {
+      const code = params.get('code');
+      // Server-initiated flows (/oauth/connect) pass code_verifier in the URL
+      const urlVerifier = params.get('code_verifier');
+      restoreState();
+      switchTab('login');
+      window.history.replaceState({}, '', window.location.pathname);
+
+      // Auto-exchange the code for a token
+      const clientId = sessionStorage.getItem('pg_client_id');
+      const clientSecret = sessionStorage.getItem('pg_client_secret');
+      const savedVerifier = urlVerifier || sessionStorage.getItem('pg_code_verifier');
+
+      if (!clientId || !clientSecret || !savedVerifier) {
+        alert('Missing credentials. Please configure in the Playground tab first.');
+        return;
+      }
+
+      try {
+        const body = new URLSearchParams({
+          grant_type: 'authorization_code',
+          code: code,
+          client_id: clientId,
+          client_secret: clientSecret,
+          code_verifier: savedVerifier,
+        });
+
+        const resp = await fetch(`${API_URL}/oauth/token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: body.toString(),
+        });
+
+        const data = await resp.json();
+
+        if (resp.ok && data.access_token) {
+          sessionStorage.setItem('pg_login_token', data.access_token);
+          // Show success screen briefly, then transition to profile
+          document.getElementById('login-card').style.display = 'none';
+          document.getElementById('login-denied').style.display = 'none';
+          document.getElementById('login-success').style.display = '';
+          setTimeout(() => {
+            document.getElementById('login-success').style.display = 'none';
+            showLoggedIn(data.access_token);
+          }, 1500);
+        } else {
+          handleLoginError(new URLSearchParams({ error: 'token_failed', error_description: data.error || 'Token exchange failed' }));
+        }
+      } catch (err) {
+        handleLoginError(new URLSearchParams({ error: 'token_failed', error_description: err.message }));
+      }
+    }
+
+    async function showLoggedIn(token) {
+      // Fetch profile
+      try {
+        const resp = await fetch(`${API_URL}/oauth/proxy/profile`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await resp.json();
+
+        if (!resp.ok) {
+          logout();
+          return;
+        }
+
+        document.getElementById('login-card').style.display = 'none';
+        const profile = document.getElementById('login-profile');
+        profile.style.display = '';
+
+        // Avatar
+        const avatarEl = document.getElementById('profile-avatar');
+        if (data.profile?.avatarUrl) {
+          avatarEl.innerHTML = `<img src="${escHtml(data.profile.avatarUrl)}" alt="">`;
+        } else {
+          avatarEl.textContent = (data.name || '?')[0].toUpperCase();
+        }
+
+        // Name + wallet
+        document.getElementById('profile-name').textContent = data.name;
+        const wallet = data.wallet || '';
+        document.getElementById('profile-wallet').textContent = wallet
+          ? wallet.slice(0, 6) + '\u2026' + wallet.slice(-4)
+          : 'No wallet';
+
+        // Scopes
+        const scopesEl = document.getElementById('profile-scopes');
+        // Decode JWT to get scopes
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          scopesEl.innerHTML = (payload.scopes || []).map(s =>
+            `<span class="login-scope-badge">${escHtml(s)}</span>`
+          ).join('');
+        } catch (e) {
+          scopesEl.innerHTML = '<span class="login-scope-badge">balance</span><span class="login-scope-badge">profile</span>';
+        }
+
+        // Info rows
+        const infoEl = document.getElementById('profile-info');
+        // Also fetch balance
+        let balanceText = '...';
+        try {
+          const balResp = await fetch(`${API_URL}/oauth/proxy/balance`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          const balData = await balResp.json();
+          if (balResp.ok && balData.mon) {
+            balanceText = `${parseFloat(balData.mon.balance).toFixed(2)} MON`;
+          }
+        } catch (e) {}
+
+        infoEl.innerHTML = `
+          <div class="login-info-row">
+            <span class="login-info-label">Agent</span>
+            <span class="login-info-value">${escHtml(data.name)}</span>
+          </div>
+          <div class="login-info-row">
+            <span class="login-info-label">Wallet</span>
+            <span class="login-info-value">${escHtml(wallet || 'None')}</span>
+          </div>
+          <div class="login-info-row">
+            <span class="login-info-label">Balance</span>
+            <span class="login-info-value">${escHtml(balanceText)}</span>
+          </div>
+          <div class="login-info-row">
+            <span class="login-info-label">Registered</span>
+            <span class="login-info-value">${data.registeredAt ? new Date(data.registeredAt).toLocaleDateString() : 'Unknown'}</span>
+          </div>
+        `;
+      } catch (err) {
+        logout();
+      }
+    }
+
+    function handleLoginError(params) {
+      restoreState();
+      switchTab('login');
+      window.history.replaceState({}, '', window.location.pathname);
+
+      const error = params.get('error') || 'access_denied';
+      const desc = params.get('error_description') || '';
+      const messages = {
+        'access_denied': 'The operator denied the authorization request.',
+        'consent_denied': 'The operator denied the authorization request.',
+        'invalid_request': 'The authorization request was invalid.',
+        'server_error': 'Something went wrong. Please try again.',
+      };
+
+      document.getElementById('login-card').style.display = 'none';
+      document.getElementById('login-denied').style.display = '';
+      document.getElementById('login-denied-msg').textContent = desc || messages[error] || `Authorization failed: ${error}`;
+      sessionStorage.removeItem('pg_return_tab');
+    }
+
+    function logout() {
+      sessionStorage.removeItem('pg_login_token');
+      document.getElementById('login-card').style.display = '';
+      document.getElementById('login-profile').style.display = 'none';
+      document.getElementById('login-denied').style.display = 'none';
+      document.getElementById('login-success').style.display = 'none';
+    }
+
+    // ========== Scope Chips (read-only, from dApp registration) ==========
+    function renderScopeChips() {
+      const container = document.getElementById('scope-chips');
+      if (selectedScopes.length === 0) {
+        container.innerHTML = '<div class="pg-hint" style="margin:0;">Save your Client ID to load registered scopes</div>';
+        return;
+      }
+      container.innerHTML = selectedScopes.map(s => `
+        <span class="pg-scope-chip selected" style="cursor:default;">${s}</span>
+      `).join('');
+    }
+
+    // ========== PKCE ==========
+    async function generatePKCE() {
+      codeVerifier = randomString(64);
+      const encoder = new TextEncoder();
+      const data = encoder.encode(codeVerifier);
+      const hash = await crypto.subtle.digest('SHA-256', data);
+      codeChallenge = btoa(String.fromCharCode(...new Uint8Array(hash)))
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+      document.getElementById('pkce-verifier').textContent = codeVerifier;
+      document.getElementById('pkce-challenge').textContent = codeChallenge;
+    }
+
+    function randomString(len) {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+      let result = '';
+      const values = crypto.getRandomValues(new Uint8Array(len));
+      for (const v of values) result += chars[v % chars.length];
+      return result;
+    }
+
+    // ========== Auth URL ==========
+    function buildAuthUrl() {
+      const clientId = document.getElementById('client-id').value.trim();
+      const redirectUri = document.getElementById('redirect-uri').value.trim();
+      const agent = document.getElementById('agent-name').value.trim();
+      if (!clientId || !redirectUri) return null;
+
+      const params = new URLSearchParams({
+        client_id: clientId, redirect_uri: redirectUri,
+        response_type: 'code', scope: selectedScopes.join(' '),
+        code_challenge: codeChallenge, code_challenge_method: 'S256',
+        state: stateParam,
+      });
+      if (agent) params.set('agent', agent);
+      return `${BASE_URL}/oauth/authorize?${params.toString()}`;
+    }
+
+    function updateAuthUrl() {
+      const preview = document.getElementById('auth-url-preview');
+      const url = buildAuthUrl();
+      if (!url) { preview.textContent = 'Enter Client ID and Redirect URI above'; return; }
+
+      const [base, qs] = url.split('?');
+      const parts = qs.split('&');
+      let html = `<span class="pg-url-base">${escHtml(base)}</span>?`;
+      html += parts.map(p => {
+        const [key, ...rest] = p.split('=');
+        return `\n  <span class="pg-url-param">${escHtml(decodeURIComponent(key))}</span>=${escHtml(decodeURIComponent(rest.join('=')))}`;
+      }).join('&');
+      preview.innerHTML = html;
+      updateTokenRequestPreview();
+    }
+
+    // ========== Authorize (Playground) ==========
+    function openAuthorize() {
+      const url = buildAuthUrl();
+      if (!url) { alert('Please fill in Client ID and Redirect URI in Step 1.'); return; }
+
+      sessionStorage.setItem('pg_return_tab', 'playground');
+      sessionStorage.setItem('pg_code_verifier', codeVerifier);
+      sessionStorage.setItem('pg_state', stateParam);
+      sessionStorage.setItem('pg_client_id', document.getElementById('client-id').value.trim());
+      sessionStorage.setItem('pg_client_secret', document.getElementById('client-secret').value.trim());
+      sessionStorage.setItem('pg_redirect_uri', document.getElementById('redirect-uri').value.trim());
+      sessionStorage.setItem('pg_agent', document.getElementById('agent-name').value.trim());
+      sessionStorage.setItem('pg_scopes', JSON.stringify(selectedScopes));
+
+      window.location.href = url;
+    }
+
+    function copyAuthUrl() {
+      const url = buildAuthUrl();
+      if (url) copyText(url);
+    }
+
+    // ========== Callbacks ==========
+    function handleCallback(params) {
+      const code = params.get('code');
+      const returnedState = params.get('state');
+      restoreState();
+      switchTab('playground');
+      openStep(2);
+      markStepDone(1);
+
+      document.getElementById('auth-code-result').style.display = '';
+      document.getElementById('auth-result-msg').textContent =
+        returnedState && returnedState === sessionStorage.getItem('pg_state')
+          ? '\u2713 Authorization successful \u2014 state parameter matches'
+          : '\u2713 Authorization successful';
+      document.getElementById('auth-code').value = code;
+      document.getElementById('btn-exchange').disabled = false;
+      updateTokenRequestPreview();
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+
+    function handleCallbackError(params) {
+      restoreState();
+      switchTab('playground');
+      openStep(2); markStepDone(1);
+      document.getElementById('auth-error-result').style.display = '';
+      document.getElementById('auth-error-msg').textContent = `\u2717 Authorization denied: ${params.get('error')}`;
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+
+    function restoreState() {
+      const saved = {
+        verifier: sessionStorage.getItem('pg_code_verifier'),
+        state: sessionStorage.getItem('pg_state'),
+        clientId: sessionStorage.getItem('pg_client_id'),
+        clientSecret: sessionStorage.getItem('pg_client_secret'),
+        redirectUri: sessionStorage.getItem('pg_redirect_uri'),
+        agent: sessionStorage.getItem('pg_agent'),
+        scopes: sessionStorage.getItem('pg_scopes'),
+      };
+      if (saved.verifier) codeVerifier = saved.verifier;
+      if (saved.state) stateParam = saved.state;
+      if (saved.clientId) document.getElementById('client-id').value = saved.clientId;
+      if (saved.clientSecret) document.getElementById('client-secret').value = saved.clientSecret;
+      if (saved.redirectUri) document.getElementById('redirect-uri').value = saved.redirectUri;
+      if (saved.agent) document.getElementById('agent-name').value = saved.agent;
+      if (saved.scopes) { selectedScopes = JSON.parse(saved.scopes); renderScopeChips(); }
+      // Re-fetch dApp info to populate skill doc and scopes from registration
+      if (saved.clientId) fetchDappAndGenerateSkill(saved.clientId);
+
+      document.getElementById('pkce-verifier').textContent = codeVerifier;
+      (async () => {
+        const encoder = new TextEncoder();
+        const hash = await crypto.subtle.digest('SHA-256', encoder.encode(codeVerifier));
+        codeChallenge = btoa(String.fromCharCode(...new Uint8Array(hash)))
+          .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        document.getElementById('pkce-challenge').textContent = codeChallenge;
+        updateAuthUrl();
+      })();
+    }
+
+    // ========== Token Exchange ==========
+    function updateTokenRequestPreview() {
+      const code = document.getElementById('auth-code')?.value || '<auth_code>';
+      const clientId = document.getElementById('client-id').value.trim() || '<client_id>';
+      const clientSecret = document.getElementById('client-secret').value.trim();
+      const secretDisplay = clientSecret ? clientSecret.slice(0, 6) + '...' : '<client_secret>';
+      const verifier = codeVerifier || '<code_verifier>';
+      document.getElementById('token-request-preview').textContent =
+        `POST ${BASE_URL}/oauth/token\nContent-Type: application/x-www-form-urlencoded\n\ngrant_type=authorization_code\n&code=${code}\n&client_id=${clientId}\n&client_secret=${secretDisplay}\n&code_verifier=${verifier}`;
+    }
+
+    async function exchangeToken() {
+      const btn = document.getElementById('btn-exchange');
+      const code = document.getElementById('auth-code').value.trim();
+      const clientId = document.getElementById('client-id').value.trim();
+      const clientSecret = document.getElementById('client-secret').value.trim();
+      if (!code || !clientId || !clientSecret) { showTokenResult(false, 'Missing required fields'); return; }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="pg-spinner"></span> Exchanging...';
+      try {
+        const body = new URLSearchParams({
+          grant_type: 'authorization_code', code, client_id: clientId,
+          client_secret: clientSecret, code_verifier: codeVerifier,
+        });
+        const resp = await fetch(`${API_URL}/oauth/token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: body.toString(),
+        });
+        const data = await resp.json();
+        if (resp.ok && data.access_token) {
+          showTokenResult(true, 'Token received!', data);
+          document.getElementById('access-token').value = data.access_token;
+          markStepDone(2); markStepDone(3); openStep(4);
+        } else {
+          showTokenResult(false, data.error || 'Token exchange failed', data);
+        }
+      } catch (err) { showTokenResult(false, err.message); }
+      btn.disabled = false;
+      btn.innerHTML = 'Exchange Code for Token';
+    }
+
+    function showTokenResult(ok, msg, data) {
+      const c = document.getElementById('token-result'); c.style.display = '';
+      let html = `<div class="pg-result ${ok ? 'success' : 'error'}">${escHtml(msg)}</div>`;
+      if (data) html += `<div class="pg-code-wrap"><button class="pg-code-copy" onclick="copyText(this.nextElementSibling.textContent)">Copy</button><code class="pg-code">${escHtml(JSON.stringify(data, null, 2))}</code></div>`;
+      c.innerHTML = html;
+    }
+
+    // ========== API Calls ==========
+    async function callApi(method, path, body) {
+      const token = document.getElementById('access-token').value.trim();
+      if (!token) { alert('No access token. Complete Steps 1-3 first.'); return; }
+      const responseDiv = document.getElementById('api-response');
+      const statusEl = document.getElementById('api-status');
+      const timingEl = document.getElementById('api-timing');
+      const bodyEl = document.getElementById('api-body');
+      responseDiv.style.display = '';
+      statusEl.textContent = '...'; statusEl.className = 'pg-response-status';
+      timingEl.textContent = ''; bodyEl.textContent = 'Loading...';
+      const start = performance.now();
+      try {
+        const opts = { method, headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } };
+        if (body) opts.body = JSON.stringify(body);
+        const resp = await fetch(`${API_URL}${path}`, opts);
+        const elapsed = Math.round(performance.now() - start);
+        const data = await resp.json();
+        statusEl.textContent = resp.status;
+        statusEl.className = `pg-response-status ${resp.ok ? 'ok' : 'err'}`;
+        timingEl.textContent = `${elapsed}ms`;
+        bodyEl.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        statusEl.textContent = 'ERR'; statusEl.className = 'pg-response-status err';
+        timingEl.textContent = `${Math.round(performance.now() - start)}ms`;
+        bodyEl.textContent = err.message;
+      }
+    }
+
+    // ========== Step UI ==========
+    function toggleStep(n) { document.getElementById(`step-${n}`).classList.toggle('open'); }
+    function openStep(n) {
+      for (let i = 1; i <= 4; i++) document.getElementById(`step-${i}`).classList.remove('open');
+      document.getElementById(`step-${n}`).classList.add('open');
+    }
+    function markStepDone(n) {
+      const el = document.getElementById(`step-${n}-num`);
+      el.className = 'pg-step-num done'; el.textContent = '\u2713';
+    }
+
+    // ========== Utils ==========
+    function copyText(text) { navigator.clipboard.writeText(text).catch(() => {}); showToast('Copied'); }
+    function escHtml(str) { const d = document.createElement('div'); d.textContent = str || ''; return d.innerHTML; }
+
+    function showToast(msg, type) {
+      let toast = document.getElementById('pg-toast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'pg-toast';
+        toast.className = 'pg-toast';
+        document.body.appendChild(toast);
+      }
+      const icon = (type === 'error') ? '✕' : '✓';
+      toast.innerHTML = `<span class="pg-toast-icon" style="${type === 'error' ? 'background:var(--color-error)' : ''}">${icon}</span>${escHtml(msg)}`;
+      toast.classList.remove('show');
+      // Force reflow so re-triggering the animation works
+      void toast.offsetWidth;
+      toast.classList.add('show');
+      clearTimeout(toast._t);
+      toast._t = setTimeout(() => { toast.classList.remove('show'); }, 2500);
+    }
+  </script>
+</body>
+</html>
