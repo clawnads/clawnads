@@ -688,15 +688,52 @@
   white-space: nowrap;
   flex-shrink: 0;
 }
-.dev-scope-badge.ro {
-  background: rgba(124, 92, 255, 0.1);
-  color: var(--color-accent);
-  border: 1px solid rgba(124, 92, 255, 0.2);
+.dev-scope-badge.ro,
+.dev-scope-badge.rw,
+.dev-scope-badge.wo {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
 }
-.dev-scope-badge.rw {
-  background: rgba(34, 197, 94, 0.1);
-  color: var(--color-success);
-  border: 1px solid rgba(34, 197, 94, 0.2);
+
+/* Scope rw row with access selector */
+.dev-scope-rw-row {
+  padding: var(--space-2) 0;
+}
+
+.dev-scope-access-selector {
+  display: flex;
+  margin-left: 26px;
+  margin-top: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.dev-scope-access-btn {
+  padding: var(--space-1) var(--space-4);
+  font-size: 11px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  border: none;
+  border-right: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+.dev-scope-access-btn:last-child {
+  border-right: none;
+}
+.dev-scope-access-btn:hover {
+  color: var(--color-text-secondary);
+  background: var(--color-bg-elevated);
+}
+.dev-scope-access-btn.active {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text-primary);
+  font-weight: 600;
 }
 
 /* URI list */

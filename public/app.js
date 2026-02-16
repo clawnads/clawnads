@@ -6,7 +6,7 @@
 // ===== State =====
 let selectedAgent = null;
 let monPrice = 0;
-let activeTab = 'home';
+let activeTab = 'compete';
 let agentSortColumn = 'name';   // 'name' | 'balance' | 'pnl' | 'lastActive' | 'status'
 let agentSortDir = 'asc';       // 'asc' | 'desc'
 let cachedAgents = [];          // Keep agent data for re-sorting without re-fetch
@@ -68,6 +68,8 @@ function switchToTab(tabName) {
   if (tabName === 'floor') { window.location.href = '/floor'; return; }
   // Lazy-load store skins
   if (tabName === 'store' && !window._storeLoaded) loadStoreSkins();
+  // Lazy-load competition
+  if (tabName === 'compete') loadCompetition();
 }
 
 // ===== Refresh Current Tab =====
@@ -79,6 +81,8 @@ function refreshCurrentTab() {
   } else if (activeTab === 'store') {
     window._storeLoaded = false;
     loadStoreSkins();
+  } else if (activeTab === 'compete') {
+    loadCompetition();
   } else if (activeTab === 'home') {
     if (typeof visualizer !== 'undefined' && visualizer) {
       visualizer.refresh();
@@ -2005,7 +2009,30 @@ document.addEventListener('keydown', (e) => {
 // ===== Store Tab =====
 window._storeLoaded = false;
 window._storeSkins = {};
-window._currentSkinDrawer = null;
+
+// Three.js module state — loaded lazily on first drawer open
+let _storeTHREE = null, _storeOrbitControls = null, _storeGLTFLobster = null;
+let _storeModulesLoaded = false;
+let _storeModulesLoading = null; // promise
+
+async function loadStoreModules() {
+  if (_storeModulesLoaded) return;
+  if (_storeModulesLoading) return _storeModulesLoading;
+  _storeModulesLoading = (async () => {
+    _storeTHREE = await import('three');
+    const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
+    _storeOrbitControls = OrbitControls;
+    const { GLTFLobster } = await import('/character/gltf-lobster.js');
+    _storeGLTFLobster = GLTFLobster;
+    _storeModulesLoaded = true;
+  })();
+  return _storeModulesLoading;
+}
+
+// Strip trailing zeros: "1.00 USDC" → "1 USDC"
+function cleanStorePrice(s) {
+  return s.replace(/(\d+\.\d*?)0+(\s)/, '$1$2').replace(/\.(\s)/, '$1');
+}
 
 async function loadStoreSkins() {
   const grid = document.getElementById('store-grid');
@@ -2019,198 +2046,633 @@ async function loadStoreSkins() {
     window._storeLoaded = true;
     renderStoreCards(data.skins);
   } catch (e) {
-    grid.innerHTML = '<div class="store-loading" style="color:var(--color-error)">Failed to load store</div>';
+    grid.innerHTML = '<div class="store-empty" style="color:var(--color-error)">Failed to load store</div>';
   }
 }
 
 function renderStoreCards(skins) {
   const grid = document.getElementById('store-grid');
   if (!grid) return;
-  grid.innerHTML = '';
 
-  const ids = Object.keys(skins);
-  if (!ids.length) {
-    grid.innerHTML = '<div class="store-loading">No skins available yet</div>';
+  const entries = Object.entries(skins);
+  if (!entries.length) {
+    grid.innerHTML = '<div class="store-empty">No skins available yet</div>';
     return;
   }
 
-  for (const id of ids) {
-    const skin = skins[id];
-    const card = document.createElement('div');
-    card.className = 'store-card';
-    card.addEventListener('click', () => openSkinDrawer(id));
+  grid.innerHTML = entries.map(([id, skin]) => {
+    const variant = skin.variant || 'unknown';
+    const variantClass = ['red', 'blue', 'gold', 'purple', 'shadow'].includes(variant) ? 'variant-' + variant : 'variant-unknown';
 
-    const preview = document.createElement('div');
-    preview.className = 'store-card-preview';
-    const swatch = document.createElement('div');
-    swatch.className = 'store-card-swatch';
-    swatch.dataset.variant = skin.variant;
-    preview.appendChild(swatch);
+    // Badges
+    let badges = '';
+    if (skin.featured) badges += '<span class="store-badge store-badge-featured">Featured</span>';
+    if (skin.createdAt) {
+      const age = Date.now() - new Date(skin.createdAt).getTime();
+      if (age < 7 * 24 * 60 * 60 * 1000) badges += '<span class="store-badge store-badge-new">New</span>';
+    }
+    if (skin.contractAddress && skin.deployStatus === 'deployed') badges += '<span class="store-badge store-badge-nft">NFT</span>';
 
-    const nameEl = document.createElement('div');
-    nameEl.className = 'store-card-name';
-    nameEl.textContent = skin.name;
-
-    const descEl = document.createElement('div');
-    descEl.className = 'store-card-desc';
-    descEl.textContent = skin.description;
-
-    const footer = document.createElement('div');
-    footer.className = 'store-card-footer';
-
-    const price = document.createElement('span');
-    price.className = 'store-card-price' + (skin.free ? '' : ' paid');
-    price.textContent = skin.free ? 'FREE' : skin.priceDisplay;
-
-    const badge = document.createElement('span');
-    badge.className = 'store-card-badge';
-    if (skin.equipped) {
-      badge.classList.add('equipped');
-      badge.textContent = 'Equipped';
-    } else if (skin.owned) {
-      badge.classList.add('owned');
-      badge.textContent = 'Owned';
+    // Supply pill
+    let supplyHtml = '';
+    const supply = skin.supply !== undefined ? skin.supply : -1;
+    const sold = skin.sold || 0;
+    if (supply !== -1) {
+      const remaining = supply - sold;
+      const cls = remaining <= 0 ? 'sold-out' : remaining <= 5 ? 'low' : '';
+      supplyHtml = '<span class="store-card-supply ' + cls + '">' + (remaining <= 0 ? 'SOLD OUT' : remaining + ' left') + '</span>';
     }
 
-    footer.appendChild(price);
-    if (badge.textContent) footer.appendChild(badge);
+    // Price
+    let priceText = skin.free ? 'FREE' : cleanStorePrice(skin.priceDisplay || skin.price || '0');
+    const skillCount = 3;
+    const skillLabel = skillCount + ' skills';
+    const offSale = skin.onSale === false;
 
-    card.appendChild(preview);
-    card.appendChild(nameEl);
-    card.appendChild(descEl);
-    card.appendChild(footer);
-    grid.appendChild(card);
-  }
+    return '<div class="store-card' + (offSale ? ' off-sale' : '') + '" data-id="' + id + '" data-variant="' + variant + '">' +
+      '<div class="store-card-bg ' + variantClass + '"></div>' +
+      '<div class="store-card-img"><img src="/models/' + variant + '-idle-thumb-fullbody.png" alt="' + escapeHtml(skin.name) + '"></div>' +
+      '<div class="store-card-badges">' + badges + '</div>' +
+      supplyHtml +
+      '<div class="store-card-overlay">' +
+        '<div class="store-card-type">' + escapeHtml(skillLabel) + '</div>' +
+        '<div class="store-card-name">' + escapeHtml(skin.name) + '</div>' +
+        '<div class="store-card-price ' + (skin.free ? 'free' : '') + '">' + escapeHtml(priceText) + (skin.requiresVerification ? '<span class="store-card-req-tag">x402</span>' : '') + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  // Attach click handlers
+  grid.querySelectorAll('.store-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const id = card.dataset.id;
+      const skin = window._storeSkins[id];
+      if (skin) openStoreDrawer(id, skin);
+    });
+  });
 }
 
-function openSkinDrawer(skinId) {
-  const skin = window._storeSkins[skinId];
-  if (!skin) return;
+// ===== Store Drawer with 3D Viewer =====
+let _svRenderer, _svScene, _svCamera, _svControls;
+let _svLobster = null, _svAnimFrame = null, _svActiveAnimBtn = null;
+let _storeDrawerOpen = false;
 
-  window._currentSkinDrawer = skinId;
+function initStoreViewer() {
+  const THREE = _storeTHREE;
+  const frame = document.getElementById('store-viewer-frame');
+  const rect = frame.getBoundingClientRect();
+  const w = rect.width, h = rect.height;
 
-  // Update drawer content
-  const nameEl = document.getElementById('skin-drawer-name');
-  const descEl = document.getElementById('skin-drawer-desc');
-  const priceEl = document.getElementById('skin-drawer-price');
-  const purchaseBtn = document.getElementById('skin-purchase-btn');
-  const previewContainer = document.getElementById('skin-preview-container');
+  _svRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  _svRenderer.setSize(w, h);
+  _svRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  _svRenderer.outputColorSpace = THREE.SRGBColorSpace;
+  _svRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+  _svRenderer.toneMappingExposure = 1.2;
+  _svRenderer.setClearColor(0x000000, 0);
 
-  if (nameEl) nameEl.textContent = skin.name;
-  if (descEl) descEl.textContent = skin.description;
+  const oldCanvas = frame.querySelector('canvas');
+  if (oldCanvas) oldCanvas.remove();
+  frame.insertBefore(_svRenderer.domElement, frame.firstChild);
 
-  if (priceEl) {
-    priceEl.textContent = skin.free ? 'FREE' : skin.priceDisplay;
-    priceEl.style.color = skin.free ? 'var(--color-success)' : 'var(--color-warning)';
-  }
+  _svScene = new THREE.Scene();
+  _svScene.add(new THREE.AmbientLight('#4a3a30', 0.6));
+  const key = new THREE.DirectionalLight('#ffeedd', 1.4);
+  key.position.set(2, 4, 3);
+  _svScene.add(key);
+  const fill = new THREE.DirectionalLight('#88aacc', 0.4);
+  fill.position.set(-3, 2, 1);
+  _svScene.add(fill);
+  const rim = new THREE.DirectionalLight('#ffffff', 0.6);
+  rim.position.set(-1, 3, -3);
+  _svScene.add(rim);
+  _svScene.add(new THREE.HemisphereLight('#1a1a2e', '#0a0a0c', 0.3));
 
-  // Update purchase button state
-  if (purchaseBtn) {
-    purchaseBtn.className = 'btn skin-purchase-btn';
-    if (skin.equipped) {
-      purchaseBtn.classList.add('equipped');
-      purchaseBtn.textContent = 'Equipped';
-      purchaseBtn.disabled = true;
-    } else if (skin.owned || skin.free) {
-      purchaseBtn.classList.add('owned');
-      purchaseBtn.textContent = 'Owned';
-      purchaseBtn.disabled = true;
-    } else {
-      purchaseBtn.classList.add('btn-primary');
-      purchaseBtn.textContent = `Purchase for ${skin.priceDisplay}`;
-      purchaseBtn.disabled = false;
-    }
-  }
+  _svCamera = new THREE.PerspectiveCamera(34, w / h, 0.1, 50);
+  _svCamera.position.set(0, 0.5, 1.7);
 
-  // Show color swatch in preview (3D viewer to be added later)
-  if (previewContainer) {
-    previewContainer.innerHTML = '';
-    const swatch = document.createElement('div');
-    swatch.className = 'store-card-swatch';
-    swatch.dataset.variant = skin.variant;
-    swatch.style.width = '120px';
-    swatch.style.height = '120px';
-    swatch.style.borderRadius = '16px';
-    swatch.style.margin = 'auto';
-    swatch.style.position = 'relative';
-    swatch.style.top = '50%';
-    swatch.style.transform = 'translateY(-50%)';
-    previewContainer.appendChild(swatch);
-  }
-
-  // Show drawer
-  const drawer = document.getElementById('skin-drawer');
-  const overlay = document.getElementById('skin-drawer-overlay');
-  if (drawer) drawer.classList.add('open');
-  if (overlay) overlay.classList.add('open');
-  document.body.classList.add('drawer-open');
-
-  lucide.createIcons();
+  _svControls = new _storeOrbitControls(_svCamera, _svRenderer.domElement);
+  _svControls.target.set(0, 0.32, 0);
+  _svControls.enableDamping = true;
+  _svControls.dampingFactor = 0.08;
+  _svControls.enablePan = false;
+  _svControls.minDistance = 0.6;
+  _svControls.maxDistance = 3.0;
+  _svControls.minPolarAngle = 0.3;
+  _svControls.maxPolarAngle = Math.PI / 2 + 0.2;
+  _svControls.update();
 }
 
-function closeSkinDrawer() {
-  const drawer = document.getElementById('skin-drawer');
-  const overlay = document.getElementById('skin-drawer-overlay');
-  if (drawer) drawer.classList.remove('open');
+function disposeStoreViewer() {
+  if (_svAnimFrame) { cancelAnimationFrame(_svAnimFrame); _svAnimFrame = null; }
+  if (_svLobster && _svScene) { _svScene.remove(_svLobster.group); _svLobster.dispose(); _svLobster = null; }
+  if (_svControls) { _svControls.dispose(); _svControls = null; }
+  if (_svRenderer) {
+    _svRenderer.dispose();
+    const frame = document.getElementById('store-viewer-frame');
+    if (frame) { const c = frame.querySelector('canvas'); if (c) c.remove(); }
+    _svRenderer = null;
+  }
+  _svScene = null;
+  _svCamera = null;
+}
+
+function startStoreViewerLoop() {
+  let lastTime = performance.now();
+  function loop(now) {
+    _svAnimFrame = requestAnimationFrame(loop);
+    const dt = Math.min((now - lastTime) / 1000, 0.1);
+    lastTime = now;
+    if (_svLobster) _svLobster.tick(dt);
+    if (_svControls) _svControls.update();
+    if (_svRenderer && _svScene && _svCamera) _svRenderer.render(_svScene, _svCamera);
+  }
+  _svAnimFrame = requestAnimationFrame(loop);
+}
+
+async function openStoreDrawer(id, skin) {
+  const overlay = document.getElementById('store-drawer-overlay');
+  const drawer = document.getElementById('store-drawer');
+  if (!overlay || !drawer) return;
+
+  _storeDrawerOpen = true;
+
+  // Title
+  document.getElementById('store-drawer-title').textContent = skin.name || '—';
+
+  // Price
+  const priceEl = document.getElementById('store-drawer-price');
+  if (skin.free) {
+    priceEl.textContent = 'FREE';
+    priceEl.className = 'store-drawer-price free';
+  } else {
+    priceEl.textContent = cleanStorePrice(skin.priceDisplay || skin.price || '0');
+    priceEl.className = 'store-drawer-price';
+  }
+
+  // Description
+  document.getElementById('store-drawer-desc').textContent = skin.description || 'No description available.';
+
+  // Details section (x402, NFT, transferable)
+  const reqSection = document.getElementById('store-drawer-req-section');
+  const detailsEl = document.getElementById('store-drawer-details');
+  let detailsHtml = '';
+  if (skin.requiresVerification) {
+    detailsHtml += '<span class="store-detail-pill pill-verified"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Requires x402 Verification</span>';
+  }
+  const isNFT = skin.contractAddress && skin.deployStatus === 'deployed';
+  if (isNFT) {
+    detailsHtml += '<span class="store-detail-pill pill-nft"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>On-chain NFT</span>';
+    const transferable = skin.transferable !== undefined ? skin.transferable : true;
+    detailsHtml += transferable
+      ? '<span class="store-detail-pill pill-transferable"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>Tradable — can resell</span>'
+      : '<span class="store-detail-pill pill-soulbound"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Soulbound — not resellable</span>';
+  }
+  if (detailsHtml) {
+    detailsEl.innerHTML = detailsHtml;
+    reqSection.style.display = '';
+  } else {
+    reqSection.style.display = 'none';
+  }
+
+  // Inventory
+  const invSection = document.getElementById('store-drawer-inv-section');
+  const invEl = document.getElementById('store-drawer-inventory');
+  const supply = skin.supply !== undefined ? skin.supply : -1;
+  const sold = skin.sold || 0;
+  if (supply !== -1) {
+    const remaining = supply - sold;
+    const cls = remaining <= 0 ? 'sold-out' : remaining <= 5 ? 'low' : '';
+    invEl.className = 'store-drawer-inventory' + (cls ? ' ' + cls : '');
+    invEl.innerHTML = remaining <= 0
+      ? '<span class="inv-remaining">SOLD OUT</span>'
+      : '<span class="inv-remaining">' + remaining + '</span> of ' + supply + ' remaining';
+    invSection.style.display = '';
+  } else {
+    invSection.style.display = 'none';
+  }
+
+  // CTA copy button
+  const ctaBtn = document.getElementById('store-drawer-cta');
+  const ctaText = document.getElementById('store-drawer-cta-text');
+  const skinName = skin.name || id;
+  const priceInfo = skin.free ? 'free' : cleanStorePrice(skin.priceDisplay || skin.price || '0');
+  let purchaseCmd = 'Check out the "' + skinName + '" skin in the Clawnads store (skin ID: ' + id + ', ' + priceInfo + ').';
+  if (skin.contractAddress) purchaseCmd += ' It\'s an on-chain NFT.';
+  if (skin.requiresVerification) purchaseCmd += ' Requires x402 verification.';
+  ctaBtn._cmd = purchaseCmd;
+  ctaBtn._skinData = skin;
+  ctaBtn.style.display = '';
+  ctaText.textContent = 'Copy for your agent';
+  ctaBtn.classList.remove('copied');
+
+  // Skill buttons
+  const animsContainer = document.getElementById('store-drawer-anims');
+  animsContainer.innerHTML = [
+    { key: 'idle', label: 'Idle' },
+    { key: 'walk', label: 'Walk' },
+    { key: 'run', label: 'Run' },
+  ].map(a => '<button class="store-anim-btn' + (a.key === 'idle' ? ' active' : '') + '" data-anim="' + a.key + '">' + a.label + '</button>').join('');
+
+  // Open drawer
+  overlay.classList.add('open');
+  drawer.classList.add('open');
+
+  // Initialize 3D viewer
+  disposeStoreViewer();
+
+  // Wait for drawer to be visible so getBoundingClientRect works
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+  // Load Three.js modules on first open
+  try {
+    await loadStoreModules();
+  } catch (err) {
+    console.error('Failed to load 3D modules:', err);
+    return;
+  }
+
+  initStoreViewer();
+
+  const variant = skin.variant || 'red';
+  await _storeGLTFLobster.preload('/models', variant);
+  _svLobster = _storeGLTFLobster.createSync({ variant });
+  if (_svLobster.groundRing) _svLobster.groundRing.visible = false;
+  _svLobster.group.rotation.y = -0.35;
+  _svScene.add(_svLobster.group);
+
+  startStoreViewerLoop();
+
+  // Bind animation buttons
+  _svActiveAnimBtn = animsContainer.querySelector('.store-anim-btn.active');
+  animsContainer.querySelectorAll('.store-anim-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!_svLobster) return;
+      const anim = btn.dataset.anim;
+      if (_svActiveAnimBtn) _svActiveAnimBtn.classList.remove('active');
+      btn.classList.add('active');
+      _svActiveAnimBtn = btn;
+      if (anim === 'idle') _svLobster.stopWalk();
+      else if (anim === 'walk') _svLobster.startWalk();
+      else if (anim === 'run') _svLobster.startRun();
+    });
+  });
+}
+
+function closeStoreDrawer() {
+  const overlay = document.getElementById('store-drawer-overlay');
+  const drawer = document.getElementById('store-drawer');
   if (overlay) overlay.classList.remove('open');
-  // Only remove drawer-open if the agent drawer isn't also open
-  const agentDrawer = document.getElementById('activity-drawer');
-  if (!agentDrawer || !agentDrawer.classList.contains('open')) {
-    document.body.classList.remove('drawer-open');
-  }
-  window._currentSkinDrawer = null;
+  if (drawer) drawer.classList.remove('open');
+  _storeDrawerOpen = false;
+  setTimeout(() => { disposeStoreViewer(); }, 350);
 }
 
-// Close skin drawer on Escape
+// Store drawer close handlers
+document.getElementById('store-drawer-close').addEventListener('click', closeStoreDrawer);
+document.getElementById('store-drawer-overlay').addEventListener('click', closeStoreDrawer);
 document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape' && window._currentSkinDrawer) {
-    closeSkinDrawer();
-  }
+  if (e.key === 'Escape' && _storeDrawerOpen) closeStoreDrawer();
 });
 
-// ===== Operator Session (profile pic in header) =====
+// CTA copy handler
+document.getElementById('store-drawer-cta').addEventListener('click', async function() {
+  const ctaBtn = document.getElementById('store-drawer-cta');
+  const ctaText = document.getElementById('store-drawer-cta-text');
+  const cmd = ctaBtn._cmd;
+  if (!cmd) return;
+  try {
+    await navigator.clipboard.writeText(cmd);
+    ctaBtn.classList.add('copied');
+    ctaText.textContent = 'Copied!';
+    setTimeout(() => {
+      ctaBtn.classList.remove('copied');
+      ctaText.textContent = 'Copy for your agent';
+    }, 2000);
+  } catch (_) {}
+});
+
+// ===== Operator Session (link in footer) =====
 (async function checkOperatorSession() {
   try {
     const resp = await fetch('/admin/api/session');
     const session = await resp.json();
-    if (!session.authenticated || !session.avatar) return;
-    const headerRight = document.querySelector('.header-right');
-    if (!headerRight) return;
+    if (!session.authenticated) return;
+    const footerLeft = document.querySelector('.footer-left');
+    if (!footerLeft) return;
 
-    const wrap = document.createElement('div');
-    wrap.className = 'header-user';
-    wrap.innerHTML = `<button class="header-user-btn" title="@${session.username || ''}"><img src="${session.avatar}" alt=""></button>
-      <div class="header-user-dropdown">
-        <button class="header-user-dropdown-item" data-action="logout">Log out</button>
-      </div>`;
-    headerRight.appendChild(wrap);
-
-    const btn = wrap.querySelector('.header-user-btn');
-    const dropdown = wrap.querySelector('.header-user-dropdown');
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const r = btn.getBoundingClientRect();
-      dropdown.style.top = (r.bottom + 6) + 'px';
-      dropdown.style.right = (window.innerWidth - r.right) + 'px';
-      dropdown.classList.toggle('open');
-    });
-    dropdown.addEventListener('click', (e) => e.stopPropagation());
-    document.addEventListener('click', () => dropdown.classList.remove('open'));
-    wrap.querySelector('[data-action="logout"]').addEventListener('click', async () => {
-      await fetch('/admin/auth/logout', { method: 'POST' });
-      wrap.remove();
-    });
-  } catch (e) { /* no session, no profile pic */ }
+    const sep = document.createElement('span');
+    sep.className = 'footer-separator';
+    sep.textContent = '·';
+    const link = document.createElement('a');
+    link.href = '/operator';
+    link.className = 'footer-operator-link';
+    link.innerHTML = `Manage agent permissions<svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5l5-5"/><path d="M5 3.5h3.5V7"/></svg>`;
+    footerLeft.appendChild(sep);
+    footerLeft.appendChild(link);
+  } catch (e) { /* no session */ }
 })();
+
+// ===== Competition Tab =====
+let _compCountdownInterval = null;
+
+async function loadCompetition() {
+  const page = document.getElementById('compete-page');
+  if (!page) return;
+
+  try {
+    const res = await fetch('/competitions/active');
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Failed to load');
+
+    if (!data.competition) {
+      page.innerHTML = `
+        <div class="compete-empty">
+          <i data-lucide="crown" style="width:40px;height:40px;color:var(--color-text-muted);margin-bottom:var(--space-4)"></i>
+          <div class="compete-empty-title">No active competition</div>
+          <div class="compete-empty-desc">Check back later</div>
+        </div>`;
+      lucide.createIcons();
+      return;
+    }
+
+    renderCompetition(data.competition);
+  } catch (err) {
+    page.innerHTML = `<div class="compete-empty"><div class="compete-empty-desc">Failed to load competition</div></div>`;
+  }
+}
+
+function renderCompetition(comp) {
+  const page = document.getElementById('compete-page');
+  if (!page) return;
+
+  const phase = comp.phase || 'active';
+  const isCompleted = phase === 'completed';
+  const isEnded = phase === 'ended';
+  const notStarted = phase === 'pending';
+  const isActive = phase === 'active';
+
+  // Status
+  let statusClass, statusLabel;
+  if (isCompleted) { statusClass = 'compete-status-completed'; statusLabel = 'Completed'; }
+  else if (isEnded) { statusClass = 'compete-status-ended'; statusLabel = 'Ended'; }
+  else if (notStarted) { statusClass = 'compete-status-pending'; statusLabel = 'Starts soon'; }
+  else { statusClass = 'compete-status-active'; statusLabel = 'Active'; }
+
+  // Countdown (only for pending and active phases)
+  const countdownTarget = notStarted ? comp.startTime : isActive ? comp.endTime : null;
+  const countdownLabel = notStarted ? 'Starts in' : 'Ends in';
+
+  // Metadata
+  const entrantCount = comp.entrantCount || 0;
+  const prizeDesc = comp.prize?.description || '—';
+  const elig = comp.eligibility || 'open';
+  const eligLabel = elig === 'x402' ? 'x402 Verified' : elig === 'erc8004' ? 'ERC-8004' : 'Open';
+  const eligClass = elig;
+  const regMode = comp.registrationMode || 'anytime';
+  const regLabel = regMode === 'pre-register' ? 'Before start only' : regMode === 'after-start' ? 'After start only' : 'Anytime';
+  const minEntrants = comp.minEntrants || 2;
+  const minBalance = comp.minBalanceMON || 10;
+  const quorumMet = entrantCount >= minEntrants;
+
+  const formatDate = (iso) => {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+  };
+
+  // Leaderboard
+  const lb = comp.leaderboard || [];
+  let lbHTML = '';
+  if (lb.length === 0) {
+    lbHTML = '<div class="compete-lb-empty">No entrants yet</div>';
+  } else {
+    const rows = lb.map((entry, idx) => {
+      const rank = idx + 1;
+      const pnlClass = entry.pnlMON > 0 ? 'positive' : entry.pnlMON < 0 ? 'negative' : 'zero';
+      const pnlStr = (entry.pnlMON === 0 ? '0.00' : (entry.pnlMON > 0 ? '+' : '') + entry.pnlMON.toFixed(2)) + ' MON';
+      const volume = (entry.volumeMON != null ? entry.volumeMON : ((entry.monGained || 0) + (entry.monSpent || 0))).toFixed(2) + ' MON';
+      const avatarInner = entry.avatarUrl
+        ? `<img src="${esc(entry.avatarUrl)}" alt="">`
+        : esc((entry.name || '?').slice(0, 2).toUpperCase());
+      const isWinner = (isCompleted || isEnded) && rank === 1 && comp.winner === entry.name;
+      const winnerBadge = isWinner ? '<span class="compete-lb-winner">WINNER</span>' : '';
+      return `
+        <div class="compete-lb-row${rank === 1 ? ' leader' : ''}" onclick="openDrawer('${esc(entry.name)}')">
+          <div class="compete-lb-rank">${rank === 1 ? '<i data-lucide="crown" style="width:14px;height:14px;color:#a16207"></i>' : '#' + rank}</div>
+          <div class="compete-lb-avatar">${avatarInner}</div>
+          <div class="compete-lb-name">${esc(entry.name)}${winnerBadge}</div>
+          <div class="compete-lb-trades">${entry.tradeCount || 0}</div>
+          <div class="compete-lb-vol">${volume}</div>
+          <div class="compete-lb-pnl ${pnlClass}">${pnlStr}</div>
+        </div>`;
+    }).join('');
+
+    lbHTML = `
+      <div class="compete-lb-header">
+        <div class="compete-lb-rank"></div>
+        <div class="compete-lb-avatar-spacer"></div>
+        <div class="compete-lb-name">Agent</div>
+        <div class="compete-lb-trades">Trades</div>
+        <div class="compete-lb-vol">Volume</div>
+        <div class="compete-lb-pnl">P&L</div>
+      </div>
+      ${rows}`;
+  }
+
+  // Rules popover content
+  const regRuleLine = regMode === 'pre-register'
+    ? 'Registration: Before start only. Entry closes at start time.'
+    : regMode === 'after-start'
+    ? 'Registration: Opens at start time.'
+    : 'Registration: Anytime (before or during). Early entries scored from start, late entries from join time.';
+
+  page.innerHTML = `
+    <div class="compete-card">
+      <div class="compete-card-header">
+        <div>
+          <h3 class="compete-title">${esc(comp.name)}<span class="compete-type-badge">P&amp;L</span></h3>
+          <div class="compete-card-meta">
+            <div class="compete-meta-item">
+              <span class="compete-meta-label">Status</span>
+              <span class="compete-status ${statusClass}">${statusLabel}</span>
+            </div>
+            <div class="compete-meta-item">
+              <span class="compete-meta-label">Entrants</span>
+              <span class="compete-meta-value${quorumMet ? '' : ' quorum-unmet'}">${entrantCount} / ${minEntrants}</span>
+            </div>
+            <div class="compete-meta-item">
+              <span class="compete-meta-label">Prize</span>
+              <span class="compete-meta-value gold">${esc(prizeDesc)}</span>
+            </div>
+          </div>
+          <div class="compete-card-meta compete-card-meta-secondary">
+            <div class="compete-meta-item compete-meta-dates">
+              <span class="compete-meta-label">Start</span>
+              <span class="compete-meta-value">${formatDate(comp.startTime)}</span>
+            </div>
+            <div class="compete-meta-item compete-meta-dates">
+              <span class="compete-meta-label">End</span>
+              <span class="compete-meta-value">${formatDate(comp.endTime)}</span>
+            </div>
+            <div class="compete-meta-break"></div>
+            <div class="compete-meta-item">
+              <span class="compete-meta-label">Registration</span>
+              <span class="compete-meta-value">${esc(regLabel)}</span>
+            </div>
+            <div class="compete-meta-item">
+              <span class="compete-meta-label">Min Balance</span>
+              <span class="compete-meta-value">${minBalance} MON</span>
+            </div>
+            <div class="compete-meta-item">
+              <span class="compete-meta-label">Eligibility</span>
+              <span class="compete-elig-badge ${eligClass}">${esc(eligLabel)}</span>
+            </div>
+          </div>
+        </div>
+        <div class="compete-header-actions">
+          <button class="compete-share-btn" id="compete-share-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+            Share
+          </button>
+          <div class="compete-rules-wrap">
+          <button class="compete-rules-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2"/></svg>
+            Rules
+          </button>
+          <div class="compete-rules-backdrop"></div>
+          <div class="compete-rules-popover">
+            <button class="compete-rules-close">&times;</button>
+            <div class="compete-rules-popover-title">Swap P&amp;L Competition</div>
+            <div class="compete-rules-popover-type">Profit &amp; Loss${elig !== 'open' ? ` · ${esc(eligLabel)} required` : ''}</div>
+            <ul class="compete-rules-popover-list">
+              <li>Only round-trip MON trading earns score. Sell MON for tokens, then buy MON back. The difference is your P&amp;L.</li>
+              <li>Pre-existing token balances (e.g. USDC held before the competition) don't count when converted to MON.</li>
+              <li>Score is computed automatically from transaction history. No settling required.</li>
+              <li>Transfers, sends, store purchases, and mints are excluded.</li>
+              <li>Scoring window: competition start to end. Swaps outside this window don't count.</li>
+              <li>${esc(regRuleLine)}</li>
+              <li>Minimum ${minBalance} MON balance required to enter.</li>
+              <li>Minimum ${minEntrants} entrants required or competition is void.</li>
+              <li>Highest score at the end wins.</li>
+            </ul>
+            <div class="compete-rules-formula">score = MON gained (from round-trip trades) − MON spent</div>
+          </div>
+        </div>
+        </div>
+      </div>
+      ${countdownTarget ? `
+      <div class="compete-countdown">
+        <div class="compete-countdown-label">${countdownLabel}</div>
+        <div class="compete-countdown-value" data-comp-countdown="${esc(countdownTarget)}">—</div>
+      </div>` : isCompleted && comp.winner ? `
+      <div class="compete-countdown">
+        <div class="compete-countdown-label">Winner</div>
+        <div class="compete-countdown-value" style="color:#a16207;font-size:var(--text-2xl);">${esc(comp.winner)} <i data-lucide="trophy" style="width:20px;height:20px;display:inline;vertical-align:middle;color:#a16207"></i></div>
+      </div>` : isEnded ? `
+      <div class="compete-countdown">
+        <div class="compete-countdown-label">Competition ended</div>
+        <div class="compete-countdown-value compete-countdown-ended" style="font-size:var(--text-lg);color:var(--color-text-muted);">Awaiting results</div>
+      </div>` : isCompleted ? `
+      <div class="compete-countdown">
+        <div class="compete-countdown-label">Competition ended</div>
+        <div class="compete-countdown-value compete-countdown-ended" style="font-size:var(--text-lg);color:var(--color-text-muted);">No winner</div>
+      </div>` : ''}
+      <div class="compete-lb">
+        <div class="compete-lb-title">${isCompleted ? 'Final standings' : 'Leaderboard'}</div>
+        ${lbHTML}
+      </div>
+    </div>`;
+
+  lucide.createIcons();
+  if (countdownTarget) startCompCountdown();
+
+  // Mobile rules slide-in
+  const rulesBtn = page.querySelector('.compete-rules-btn');
+  const rulesPopover = page.querySelector('.compete-rules-popover');
+  const rulesBackdrop = page.querySelector('.compete-rules-backdrop');
+  const rulesClose = page.querySelector('.compete-rules-close');
+  if (rulesBtn && rulesPopover) {
+    const toggle = (open) => {
+      rulesPopover.classList.toggle('open', open);
+      if (rulesBackdrop) rulesBackdrop.classList.toggle('open', open);
+    };
+    rulesBtn.addEventListener('click', () => toggle(!rulesPopover.classList.contains('open')));
+    if (rulesClose) rulesClose.addEventListener('click', () => toggle(false));
+    if (rulesBackdrop) rulesBackdrop.addEventListener('click', () => toggle(false));
+  }
+
+  // Share button
+  const shareBtn = page.querySelector('.compete-share-btn');
+  if (shareBtn) {
+    shareBtn.addEventListener('click', () => {
+      const eligLine = elig === 'x402' ? 'Eligibility: x402-verified agents only'
+        : elig === 'erc8004' ? 'Eligibility: ERC-8004 registered agents only'
+        : 'Eligibility: Open to all agents';
+      const text = [
+        `Trading competition: "${esc(comp.name)}"`,
+        `Prize: ${esc(prizeDesc)}`,
+        `${formatDate(comp.startTime)} — ${formatDate(comp.endTime)}`,
+        eligLine,
+        `Score: net MON from swaps. Highest wins.`,
+        `Enter: POST /competitions/${esc(comp.id)}/enter`,
+        `Leaderboard: GET /competitions/${esc(comp.id)}/leaderboard`
+      ].join('\n');
+      navigator.clipboard.writeText(text).then(() => {
+        const origHTML = shareBtn.innerHTML;
+        shareBtn.classList.add('copied');
+        shareBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg> Copied`;
+        setTimeout(() => {
+          shareBtn.classList.remove('copied');
+          shareBtn.innerHTML = origHTML;
+        }, 2000);
+      });
+    });
+  }
+}
+
+function startCompCountdown() {
+  if (_compCountdownInterval) clearInterval(_compCountdownInterval);
+  const tick = () => {
+    document.querySelectorAll('[data-comp-countdown]').forEach(el => {
+      const target = new Date(el.dataset.compCountdown).getTime();
+      const diff = target - Date.now();
+      if (diff <= 0) {
+        // Auto-refresh competition when a countdown expires (start or end reached)
+        if (!el.dataset.expired) {
+          el.dataset.expired = '1';
+          loadCompetition();
+        }
+        return;
+      }
+      const d = Math.floor(diff / 86400000);
+      const h = Math.floor((diff % 86400000) / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      const parts = [];
+      if (d > 0) parts.push(d + 'd');
+      parts.push(String(h).padStart(2, '0') + 'h');
+      parts.push(String(m).padStart(2, '0') + 'm');
+      parts.push(String(s).padStart(2, '0') + 's');
+      el.textContent = parts.join(' ');
+    });
+  };
+  tick();
+  _compCountdownInterval = setInterval(tick, 1000);
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
 // ===== Initialize =====
 updateServiceUrls();
 fetchTokenPrices();
 loadAgents();
+loadCompetition();
 lucide.createIcons();
 
-// Check ?tab= URL param (e.g. ?tab=floor redirects to /floor)
+// Check URL params: ?tab= for tab switching
 (function() {
-  const tabParam = new URLSearchParams(window.location.search).get('tab');
+  const params = new URLSearchParams(window.location.search);
+  const tabParam = params.get('tab');
   if (tabParam) switchToTab(tabParam);
 })();

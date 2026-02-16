@@ -28,7 +28,30 @@
       display: flex; gap: 0;
       border-bottom: 1px solid var(--color-border);
       padding: 0 var(--space-16);
+      align-items: stretch;
     }
+    .pg-tabs-right {
+      margin-left: auto; display: flex; align-items: center; gap: var(--space-4);
+      padding-right: var(--space-2);
+    }
+    .pg-nav-status {
+      display: flex; align-items: center; gap: var(--space-3);
+      font-size: var(--text-xs); color: var(--color-text-muted);
+    }
+    .pg-nav-status.connected { color: var(--color-success); }
+    .pg-nav-status .nav-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--color-text-muted);
+    }
+    .pg-nav-status.connected .nav-dot { background: var(--color-success); }
+    .pg-nav-disconnect {
+      font-size: 10px; font-weight: 600; font-family: var(--font-sans);
+      padding: 1px var(--space-3);
+      background: none; border: 1px solid var(--color-border);
+      border-radius: var(--radius-pill); color: var(--color-text-muted);
+      cursor: pointer; transition: all var(--transition-fast);
+    }
+    .pg-nav-disconnect:hover { color: var(--color-text-secondary); border-color: var(--color-text-muted); }
     .pg-tab {
       padding: var(--space-5) var(--space-8);
       font-size: var(--text-sm); font-weight: 500; color: var(--color-text-tertiary);
@@ -43,6 +66,23 @@
     .pg-tab-content { display: none; flex: 1; }
     .pg-tab-content.active { display: flex; flex-direction: column; }
 
+    /* dApp tab: two-column layout */
+    .dapp-layout {
+      display: flex; flex: 1; min-height: 0;
+    }
+    .dapp-left {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: var(--space-16);
+      min-height: 400px;
+    }
+    .dapp-right {
+      width: 320px; flex-shrink: 0;
+      border-left: 1px solid var(--color-border);
+      background: var(--color-bg-panel);
+      overflow-y: auto;
+    }
+
     .pg-container {
       max-width: 720px; margin: 0 auto; width: 100%;
       padding: var(--space-12) var(--space-16);
@@ -52,17 +92,12 @@
     .pg-subtitle { font-size: var(--text-sm); color: var(--color-text-tertiary); margin-bottom: var(--space-12); line-height: var(--leading-relaxed); }
 
     /* ==================== Login Tab ==================== */
-    .login-centered {
-      flex: 1; display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      padding: var(--space-16);
-      min-height: 400px;
-    }
     .login-card {
       text-align: center; max-width: 400px; width: 100%;
     }
     .login-icon { margin-bottom: var(--space-8); }
     .login-icon img { width: 64px; height: auto; opacity: 0.5; }
+    .login-icon svg { width: 100px; height: auto; }
     .login-heading {
       font-size: var(--text-lg); font-weight: 700;
       margin-bottom: var(--space-3);
@@ -83,50 +118,125 @@
       transition: background var(--transition-fast);
     }
     .btn-claw-login:hover { background: var(--color-text-secondary); }
-    .btn-claw-login img { width: 28px; height: 28px; }
+    .btn-claw-login img, .btn-claw-login svg { width: 28px; height: 28px; }
 
-    /* Logged-in state */
-    .login-profile {
-      text-align: center; max-width: 400px; width: 100%;
+    /* (connected bar moved to nav) */
+
+    /* Permission drawer (right panel) */
+    .perm-panel {
+      padding: var(--space-8) var(--space-6) var(--space-6);
     }
-    .login-profile-avatar {
-      width: 72px; height: 72px; border-radius: 50%;
-      background: linear-gradient(135deg, var(--color-accent), #a855f7);
-      display: flex; align-items: center; justify-content: center;
-      font-size: var(--text-2xl); font-weight: 700; color: white;
-      margin: 0 auto var(--space-6); overflow: hidden;
+    .perm-panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: var(--space-6);
     }
-    .login-profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
-    .login-profile-name {
-      font-size: var(--text-lg); font-weight: 700; margin-bottom: var(--space-1);
+    .perm-panel-title {
+      font-size: var(--text-xs); font-weight: 600; color: var(--color-text-muted);
+      text-transform: uppercase; letter-spacing: 0.06em;
     }
-    .login-profile-wallet {
-      font-size: var(--text-xs); font-family: var(--font-mono);
-      color: var(--color-text-tertiary); margin-bottom: var(--space-8);
+    .perm-test-all {
+      font-size: var(--text-xs); font-weight: 600; font-family: var(--font-sans);
+      padding: var(--space-2) var(--space-6);
+      background: none; border: 1px solid var(--color-border);
+      border-radius: var(--radius-pill); color: var(--color-text-tertiary);
+      cursor: pointer; transition: all var(--transition-fast);
     }
-    .login-profile-scopes {
-      display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2);
-      margin-bottom: var(--space-8);
+    .perm-test-all:hover:not(:disabled) { color: var(--color-text-secondary); border-color: var(--color-text-muted); }
+    .perm-test-all:disabled { opacity: 0.3; cursor: default; }
+    .perm-grid {
+      display: flex; flex-direction: column; gap: 0;
     }
-    .login-scope-badge {
-      font-size: var(--text-xs); font-weight: 500;
-      padding: var(--space-1) var(--space-4);
-      background: rgba(124, 92, 255, 0.12); border: 1px solid rgba(124, 92, 255, 0.25);
-      color: var(--color-accent); border-radius: var(--radius-pill);
-    }
-    .login-profile-info {
-      background: var(--color-bg-card); border: 1px solid var(--color-border);
-      border-radius: var(--radius-xl); text-align: left;
-      overflow: hidden;
-    }
-    .login-info-row {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: var(--space-4) var(--space-6);
+    .perm-row {
+      display: flex; flex-direction: column; gap: var(--space-2);
+      padding: var(--space-5) var(--space-5);
       border-bottom: 1px solid var(--color-border);
     }
-    .login-info-row:last-child { border-bottom: none; }
-    .login-info-label { font-size: var(--text-xs); color: var(--color-text-muted); }
-    .login-info-value { font-size: var(--text-xs); font-family: var(--font-mono); color: var(--color-text-secondary); }
+    .perm-row:last-child { border-bottom: none; }
+    .perm-row-top {
+      display: flex; align-items: center; gap: var(--space-3);
+    }
+    .perm-scope-name {
+      font-size: var(--text-xs); font-weight: 600; font-family: var(--font-mono);
+      color: var(--color-text-secondary); flex: 1;
+    }
+    .perm-badge {
+      font-size: 10px; font-weight: 600;
+      padding: 1px 8px; border-radius: var(--radius-pill);
+      background: rgba(82, 82, 91, 0.15); border: 1px solid rgba(82, 82, 91, 0.25);
+      color: var(--color-text-muted); white-space: nowrap;
+    }
+    .perm-badge.granted {
+      background: rgba(34, 197, 94, 0.1); border-color: rgba(34, 197, 94, 0.2);
+      color: var(--color-success);
+    }
+    .perm-badge.denied {
+      background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2);
+      color: var(--color-error);
+    }
+    .perm-row-bottom {
+      display: flex; align-items: center; gap: var(--space-3);
+      min-height: 20px;
+    }
+    .perm-test-btn {
+      font-size: var(--text-xs); font-weight: 600; font-family: var(--font-sans);
+      padding: 2px var(--space-4);
+      background: none; border: 1px solid var(--color-border);
+      border-radius: var(--radius-pill); color: var(--color-text-tertiary);
+      cursor: pointer; transition: all var(--transition-fast);
+    }
+    .perm-test-btn:hover:not(:disabled) { color: var(--color-text-secondary); border-color: var(--color-text-muted); }
+    .perm-test-btn:disabled { opacity: 0.2; cursor: default; }
+    .perm-result {
+      font-size: 10px; font-weight: 500; font-family: var(--font-mono);
+      color: var(--color-text-muted);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .perm-result.ok { color: var(--color-success); }
+    .perm-result.fail { color: var(--color-error); }
+    .perm-result.warn { color: var(--color-warning); }
+    .perm-prompt {
+      display: flex; align-items: center; gap: var(--space-2);
+      margin-top: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      background: var(--color-bg-deep); border-radius: var(--radius-md);
+      font-size: 10px; font-family: var(--font-mono); color: var(--color-text-muted);
+      line-height: var(--leading-relaxed); cursor: pointer;
+      transition: color var(--transition-fast);
+    }
+    .perm-prompt:hover { color: var(--color-text-secondary); }
+    .perm-prompt-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .perm-prompt-copy {
+      flex-shrink: 0; padding: 1px 4px;
+      font-size: 9px; font-family: var(--font-sans); font-weight: 600;
+      color: var(--color-text-muted); opacity: 0;
+      transition: opacity var(--transition-fast);
+    }
+    .perm-prompt:hover .perm-prompt-copy { opacity: 1; }
+    .perm-limit-test {
+      display: flex; align-items: center; gap: var(--space-2);
+      margin-top: var(--space-2);
+    }
+    .perm-limit-btn {
+      font-size: 9px; font-weight: 600; font-family: var(--font-mono);
+      padding: 2px var(--space-3);
+      background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.2);
+      border-radius: var(--radius-pill); color: rgba(239, 68, 68, 0.6);
+      cursor: pointer; transition: all var(--transition-fast);
+      white-space: nowrap;
+    }
+    .perm-limit-btn:hover:not(:disabled) {
+      background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.4);
+      color: var(--color-error);
+    }
+    .perm-limit-btn:disabled { opacity: 0.3; cursor: default; }
+    .perm-limit-result {
+      font-size: 9px; font-weight: 500; font-family: var(--font-mono);
+      color: var(--color-text-muted);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .perm-limit-result.blocked { color: var(--color-success); }
+    .perm-limit-result.leaked { color: var(--color-error); }
+
     .login-btn-logout {
       display: inline-flex; align-items: center; gap: var(--space-2);
       margin-top: var(--space-8);
@@ -411,71 +521,181 @@
       font-size: 11px; font-weight: 700; flex-shrink: 0;
     }
 
+    @media (max-width: 768px) {
+      .dapp-layout { flex-direction: column; }
+      .dapp-left { min-height: 280px; padding: var(--space-8); }
+      .dapp-right { width: 100%; border-left: none; border-top: 1px solid var(--color-border); }
+    }
     @media (max-width: 640px) {
       .pg-container, .skill-container { padding: var(--space-8) var(--space-6); }
       .pg-header { padding: var(--space-6) var(--space-8); }
       .pg-tabs { padding: 0 var(--space-8); }
       .pg-pkce-row { flex-direction: column; gap: var(--space-3); }
-      .login-centered { padding: var(--space-8); }
     }
   </style>
 </head>
 <body>
 
   <header class="pg-header">
-    <a href="https://claw.tormund.io" style="display:flex;"><img src="/clawnads-logo-white.svg" alt="Clawnads"></a>
+    <a href="/" style="display:flex;"><img src="/clawnads-logo-white.svg" alt="Clawnads"></a>
     <span class="pg-header-sep">&middot;</span>
     <span class="pg-header-label">Test App</span>
   </header>
 
   <!-- Tabs -->
   <div class="pg-tabs">
-    <button class="pg-tab active" data-tab="login" onclick="switchTab('login')">Login</button>
+    <button class="pg-tab active" data-tab="login" onclick="switchTab('login')">dApp</button>
     <button class="pg-tab" data-tab="playground" onclick="switchTab('playground')">Playground</button>
     <button class="pg-tab" data-tab="skill" onclick="switchTab('skill')">Skill.md</button>
     <button class="pg-tab" data-tab="about" onclick="switchTab('about')">About</button>
+    <div class="pg-tabs-right">
+      <div class="pg-nav-status" id="nav-status">
+        <span class="nav-dot"></span>
+        <span id="nav-status-text">Not connected</span>
+      </div>
+      <button class="perm-test-all" id="perm-test-all" onclick="testAllScopes()" disabled style="margin:0;">Test All</button>
+      <button class="pg-nav-disconnect" id="nav-disconnect" onclick="logout()" style="display:none;">Disconnect</button>
+    </div>
   </div>
 
   <!-- ==================== Login Tab ==================== -->
   <div class="pg-tab-content active" id="tab-login">
-    <div class="login-centered">
-      <!-- Not logged in -->
-      <div class="login-card" id="login-card">
-        <div class="login-icon"><img src="/happy-crab-blue.svg" alt=""></div>
-        <div class="login-heading">Test App</div>
-        <div class="login-desc">This is a sample dApp that connects to Clawnads via OAuth. Sign in to authorize an agent.</div>
-        <a href="#" class="btn-claw-login" id="btn-login" onclick="loginWithClawnads(); return false;">
-          <img src="/happy-crab-blue.svg" alt="">
-          Authorize Agent
-        </a>
+    <div class="dapp-layout">
+      <!-- Left: Auth area -->
+      <div class="dapp-left">
+        <!-- Not logged in -->
+        <div class="login-card" id="login-card">
+          <div class="login-icon"><svg width="100" height="55" viewBox="0 0 100 55" fill="white" xmlns="http://www.w3.org/2000/svg"><path d="M31.2099 45.0527C31.3816 45.1109 31.3138 45.0772 31.455 45.1611C32.589 45.8338 33.9277 46.2766 35.1815 46.668C34.9152 47.0227 34.2144 47.7101 33.8407 48.1631C31.988 50.4053 31.1523 52.0517 30.078 54.6768C30.0466 54.7368 29.9425 54.8509 29.8944 54.9082C29.6623 55.008 29.5453 55.0327 29.3007 54.9521C26.7826 54.1202 26.2768 50.8331 27.1229 48.6533C27.8846 46.6925 29.4041 45.8487 31.2099 45.0527ZM68.4852 45.1162C69.0621 45.0313 70.4841 45.959 70.994 46.3555C73.2311 48.0924 73.9772 51.4654 72.1386 53.7686C71.8237 54.1626 70.946 54.9875 70.3876 54.9941C70.1555 54.9966 70.0611 54.9048 69.911 54.751C69.638 54.2115 69.4323 53.5146 69.1386 52.9385C67.8436 50.3981 66.7678 48.5855 64.6503 46.7012C65.9883 46.2882 67.3058 45.8796 68.4852 45.1162ZM75.0976 41.0518C77.6372 41.2724 79.9589 41.8337 81.8173 43.6602C84.0285 45.8334 84.4932 49.2289 82.1864 51.5244C81.7756 51.934 81.3041 52.3176 80.9091 51.668C80.7124 51.3342 80.2057 50.7078 79.9491 50.3447C77.9262 47.488 74.8661 44.6508 71.4413 43.6699C72.4779 43.2153 73.1779 42.6328 74.0526 41.916C74.4626 41.5805 74.6178 41.3382 75.0976 41.0518ZM24.953 41.1348C25.2018 41.3081 25.712 41.8073 25.994 42.043C26.8766 42.7798 27.5021 43.1421 28.5184 43.6533C25.1888 44.6816 22.494 46.9576 20.4198 49.7178C20.1465 50.0822 19.9759 50.3986 19.6708 50.7539L19.6093 50.8242C19.3237 51.0898 19.1644 51.66 18.7499 51.9531C18.4278 51.9673 18.1104 51.9103 17.8778 51.6797C14.6291 48.4648 16.6499 43.7235 20.4257 42.0674C21.7284 41.4963 22.1907 41.3268 23.6132 41.1611C24.0699 41.107 24.4952 41.1264 24.953 41.1348ZM50.412 21.7686C53.8394 21.7239 58.3896 22.4166 61.6933 23.4268C65.9905 24.9067 70.3972 27.0117 73.7499 30.1299C76.8457 33.0097 78.0987 34.494 74.744 37.8359C70.2383 42.3231 64.4548 44.3785 58.3495 45.5908C55.5323 46.1503 52.3726 46.1943 49.5321 46.1885C45.1317 46.1735 41.0227 45.7038 36.8075 44.4365C31.8682 42.951 25.0118 39.5832 23.1005 34.5C23.4202 32.8506 24.6728 31.4788 25.8983 30.3223C29.2819 27.1293 33.7394 24.8807 38.1278 23.4404C39.442 22.9808 40.9113 22.8445 42.2343 22.5049C45.0465 21.7828 47.5417 21.7667 50.412 21.7686ZM58.2714 36.7139C53.1801 33.6592 46.8197 33.6593 41.7284 36.7139C41.018 37.1401 40.7875 38.0621 41.2138 38.7725C41.6401 39.4825 42.5612 39.7122 43.2714 39.2861C47.4127 36.8014 52.5871 36.8013 56.7284 39.2861C57.4386 39.7122 58.3597 39.4825 58.786 38.7725C59.2122 38.0621 58.9817 37.1401 58.2714 36.7139ZM87.0839 0C92.2005 0.461954 97.6246 4.65656 99.1727 9.55762C99.4757 10.5174 100.012 12.7205 99.9999 13.7236C99.8876 22.8356 91.6694 29.0257 83.3222 30.3164C80.1773 30.8026 79.3214 31.1331 76.5575 29.6787C76.208 29.4223 75.9171 29.2185 75.747 28.8213C75.8109 28.4152 76.4329 28.1363 76.828 27.9307C78.3952 27.1126 79.3915 25.4821 80.5927 24.458C79.8025 23.6312 79.3988 22.8348 78.8427 21.8477C76.0729 16.926 76.379 9.33155 80.6288 5.25586C81.4663 7.83061 84.0478 12.8462 86.3554 14.2852C86.9364 14.1176 87.3281 12.3194 87.4335 11.7666C88.1696 7.90054 87.8807 3.83257 87.0839 0ZM12.5751 0.0224609C12.674 0.0188039 12.7036 0.0419007 12.8056 0.0742188C12.8109 0.105027 12.4873 2.15371 12.4237 2.41699C11.9339 4.44521 11.9777 13.3766 13.5809 14.2666C13.9333 14.0704 14.3942 13.5678 14.6747 13.2617C16.8563 10.8818 18.1966 8.25826 19.329 5.29004C20.1374 6.22699 21.0198 7.43298 21.5643 8.54297C24.0217 13.5521 22.9833 20.4614 19.1913 24.5205C20.1645 25.3207 20.9902 26.6263 22.1073 27.4258C22.6294 27.799 23.8926 28.3973 24.0468 28.7637C23.9779 29.0606 23.8152 29.1944 23.6112 29.4258C20.8948 31.2226 19.7045 30.7652 16.7216 30.3389C10.3594 29.4295 3.61264 25.3576 1.07411 19.2295C-2.55085 10.4783 3.42841 1.30598 12.5751 0.0224609ZM62.164 8.62793C65.1164 8.21829 67.8443 10.2775 68.2694 13.2363C68.6944 16.1954 66.6565 18.9439 63.7089 19.3867C60.7381 19.8328 57.9722 17.7685 57.5438 14.7861C57.1159 11.804 59.1885 9.04114 62.164 8.62793ZM36.1874 8.64844C39.1466 8.16434 41.9354 10.1844 42.4081 13.1543C42.8805 16.1242 40.8577 18.9139 37.8954 19.3779C34.9473 19.8393 32.1821 17.8218 31.7118 14.8662C31.2419 11.911 33.243 9.13068 36.1874 8.64844ZM37.0683 11.2412C35.6404 11.2416 34.4827 12.4037 34.4823 13.8359C34.4824 15.2683 35.6403 16.4303 37.0683 16.4307C38.4963 16.4305 39.655 15.2684 39.6552 13.8359C39.6548 12.4036 38.4962 11.2414 37.0683 11.2412ZM62.9306 11.2412C61.5023 11.2413 60.3447 12.4033 60.3446 13.8359C60.3448 15.2685 61.5024 16.4296 62.9306 16.4297C64.3588 16.4297 65.5164 15.2686 65.5165 13.8359C65.5165 12.4032 64.3589 11.2412 62.9306 11.2412Z"/></svg></div>
+          <div class="login-heading">Test App</div>
+          <div class="login-desc">This is a sample dApp that connects to Clawnads via OAuth. Sign in to authorize an agent.</div>
+          <a href="#" class="btn-claw-login" id="btn-login" onclick="loginWithClawnads(); return false;">
+            <svg width="28" height="28" viewBox="0 0 120 120" fill="currentColor"><path d="M41.21 77.05c.17.06.1.03.25.11 1.13.67 2.47 1.11 3.72 1.5-.27.36-.97 1.05-1.34 1.5-1.85 2.24-2.69 3.89-3.76 6.51-.03.06-.14.17-.18.23-.23.1-.35.12-.6.04-2.52-.83-3.02-4.12-2.18-6.3.76-1.96 2.28-2.8 4.09-3.6zm37.28.06c.58-.08 2 .85 2.51 1.24 2.24 1.74 2.98 5.11 1.14 7.41-.31.39-1.19 1.22-1.75 1.22-.23 0-.33-.09-.48-.24-.27-.54-.48-1.24-.77-1.81-1.3-2.54-2.37-4.35-4.49-6.24 1.34-.41 2.66-.82 3.84-1.58zm6.61-4.06c2.54.22 4.86.78 6.72 2.61 2.21 2.17 2.68 5.57.37 7.86-.41.41-.88.8-1.28.15-.2-.33-.7-.96-.96-1.32-2.02-2.86-5.08-5.7-8.51-6.68 1.04-.45 1.74-1.04 2.61-1.75.41-.34.57-.58 1.05-.87zm-50.15.08c.25.17.76.67 1.04.91.88.74 1.51 1.1 2.53 1.61-3.33 1.03-6.03 3.31-8.1 6.07-.27.36-.44.68-.75 1.04l-.06.07c-.29.27-.44.84-.86 1.13-.32.01-.64-.05-.87-.28-3.25-3.21-1.23-7.95 2.55-9.61 1.3-.57 1.77-.74 3.19-.91.46-.05.88-.03 1.34-.03zm25.46-19.37c3.43-.04 7.98.65 11.28 1.66 4.3 1.48 8.7 3.59 12.06 6.7 3.1 2.88 4.35 4.37 1 7.71-4.51 4.49-10.29 6.54-16.4 7.76-2.82.56-5.97.6-8.82.59-4.4-.01-8.51-.49-12.72-1.75-4.94-1.49-11.8-4.86-13.71-9.94.32-1.65 1.57-3.02 2.8-4.18 3.38-3.19 7.84-5.44 12.23-6.88 1.31-.46 2.78-.6 4.1-.93 2.82-.72 5.31-.74 8.18-.74zm8.37 13.38c-.43-.71-1.35-.94-2.06-.51-4.14 2.48-9.32 2.48-13.46 0-.71-.43-1.63-.2-2.06.51-.43.71-.2 1.63.51 2.06 5.09 3.05 11.45 3.05 16.55 0 .71-.43.94-1.35.51-2.06zM97.08 32c5.12.46 10.54 4.66 12.09 9.56.3.96.84 3.16.83 4.17-.11 9.11-8.33 15.3-16.68 16.59-3.14.49-4 .82-6.76-.64-.35-.26-.64-.46-.81-.86.06-.41.69-.69 1.08-.89 1.57-.82 2.57-2.45 3.77-3.47-.79-.83-1.19-1.62-1.75-2.61-2.77-4.92-2.47-12.51 1.79-16.59.84 2.57 3.42 7.59 5.73 9.03.58-.17.97-1.97 1.08-2.52.74-3.87.45-7.93-.35-11.77zM22.58 32.02c.1 0 .13.02.23.05 0 .03-.32 2.08-.39 2.34-.49 2.03-.45 10.96 1.16 11.85.35-.2.81-.7 1.09-1.01 2.18-2.38 3.52-5 4.65-7.97.81.94 1.69 2.14 2.24 3.25 2.46 5.01 1.42 11.92-2.37 15.98.97.8 1.8 2.11 2.92 2.91.52.37 1.78.97 1.94 1.34-.07.3-.23.43-.43.66-2.72 1.8-3.91 1.34-6.89.92C20.36 61.43 13.61 57.36 11.07 51.23 7.45 42.48 13.43 33.31 22.58 32.02zm49.59 8.61c2.95-.41 5.68 1.65 6.1 4.61.43 2.96-1.6 5.71-4.56 6.15-2.97.45-5.74-1.61-6.16-4.6-.43-2.98 1.64-5.74 4.62-6.16zm-25.98.02c2.96-.48 5.75 1.54 6.22 4.51.47 2.97-1.55 5.76-4.51 6.22-2.95.46-5.72-1.56-6.19-4.51-.47-2.96 1.53-5.74 4.48-6.22zm.88 2.59c-1.43 0-2.59 1.16-2.59 2.59 0 1.43 1.16 2.6 2.59 2.6 1.43 0 2.59-1.16 2.59-2.6 0-1.43-1.16-2.59-2.59-2.59zm25.86 0c-1.43 0-2.59 1.16-2.59 2.59 0 1.43 1.16 2.6 2.59 2.6 1.43 0 2.59-1.16 2.59-2.6 0-1.43-1.16-2.59-2.59-2.59z"/></svg>
+            Authorize Agent
+          </a>
+        </div>
+
+        <!-- Access denied -->
+        <div class="login-card" id="login-denied" style="display:none;">
+          <div class="login-icon"><svg width="64" height="35" viewBox="0 0 100 55" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:0.35;"><path d="M31.2099 45.0527C31.3816 45.1109 31.3138 45.0772 31.455 45.1611C32.589 45.8338 33.9277 46.2766 35.1815 46.668C34.9152 47.0227 34.2144 47.7101 33.8407 48.1631C31.988 50.4053 31.1523 52.0517 30.078 54.6768C30.0466 54.7368 29.9425 54.8509 29.8944 54.9082C29.6623 55.008 29.5453 55.0327 29.3007 54.9521C26.7826 54.1202 26.2768 50.8331 27.1229 48.6533C27.8846 46.6925 29.4041 45.8487 31.2099 45.0527ZM68.4852 45.1162C69.0621 45.0313 70.4841 45.959 70.994 46.3555C73.2311 48.0924 73.9772 51.4654 72.1386 53.7686C71.8237 54.1626 70.946 54.9875 70.3876 54.9941C70.1555 54.9966 70.0611 54.9048 69.911 54.751C69.638 54.2115 69.4323 53.5146 69.1386 52.9385C67.8436 50.3981 66.7678 48.5855 64.6503 46.7012C65.9883 46.2882 67.3058 45.8796 68.4852 45.1162ZM75.0976 41.0518C77.6372 41.2724 79.9589 41.8337 81.8173 43.6602C84.0285 45.8334 84.4932 49.2289 82.1864 51.5244C81.7756 51.934 81.3041 52.3176 80.9091 51.668C80.7124 51.3342 80.2057 50.7078 79.9491 50.3447C77.9262 47.488 74.8661 44.6508 71.4413 43.6699C72.4779 43.2153 73.1779 42.6328 74.0526 41.916C74.4626 41.5805 74.6178 41.3382 75.0976 41.0518ZM24.953 41.1348C25.2018 41.3081 25.712 41.8073 25.994 42.043C26.8766 42.7798 27.5021 43.1421 28.5184 43.6533C25.1888 44.6816 22.494 46.9576 20.4198 49.7178C20.1465 50.0822 19.9759 50.3986 19.6708 50.7539L19.6093 50.8242C19.3237 51.0898 19.1644 51.66 18.7499 51.9531C18.4278 51.9673 18.1104 51.9103 17.8778 51.6797C14.6291 48.4648 16.6499 43.7235 20.4257 42.0674C21.7284 41.4963 22.1907 41.3268 23.6132 41.1611C24.0699 41.107 24.4952 41.1264 24.953 41.1348ZM50.412 21.7686C53.8394 21.7239 58.3896 22.4166 61.6933 23.4268C65.9905 24.9067 70.3972 27.0117 73.7499 30.1299C76.8457 33.0097 78.0987 34.494 74.744 37.8359C70.2383 42.3231 64.4548 44.3785 58.3495 45.5908C55.5323 46.1503 52.3726 46.1943 49.5321 46.1885C45.1317 46.1735 41.0227 45.7038 36.8075 44.4365C31.8682 42.951 25.0118 39.5832 23.1005 34.5C23.4202 32.8506 24.6728 31.4788 25.8983 30.3223C29.2819 27.1293 33.7394 24.8807 38.1278 23.4404C39.442 22.9808 40.9113 22.8445 42.2343 22.5049C45.0465 21.7828 47.5417 21.7667 50.412 21.7686ZM58.2714 36.7139C53.1801 33.6592 46.8197 33.6593 41.7284 36.7139C41.018 37.1401 40.7875 38.0621 41.2138 38.7725C41.6401 39.4825 42.5612 39.7122 43.2714 39.2861C47.4127 36.8014 52.5871 36.8013 56.7284 39.2861C57.4386 39.7122 58.3597 39.4825 58.786 38.7725C59.2122 38.0621 58.9817 37.1401 58.2714 36.7139ZM87.0839 0C92.2005 0.461954 97.6246 4.65656 99.1727 9.55762C99.4757 10.5174 100.012 12.7205 99.9999 13.7236C99.8876 22.8356 91.6694 29.0257 83.3222 30.3164C80.1773 30.8026 79.3214 31.1331 76.5575 29.6787C76.208 29.4223 75.9171 29.2185 75.747 28.8213C75.8109 28.4152 76.4329 28.1363 76.828 27.9307C78.3952 27.1126 79.3915 25.4821 80.5927 24.458C79.8025 23.6312 79.3988 22.8348 78.8427 21.8477C76.0729 16.926 76.379 9.33155 80.6288 5.25586C81.4663 7.83061 84.0478 12.8462 86.3554 14.2852C86.9364 14.1176 87.3281 12.3194 87.4335 11.7666C88.1696 7.90054 87.8807 3.83257 87.0839 0ZM12.5751 0.0224609C12.674 0.0188039 12.7036 0.0419007 12.8056 0.0742188C12.8109 0.105027 12.4873 2.15371 12.4237 2.41699C11.9339 4.44521 11.9777 13.3766 13.5809 14.2666C13.9333 14.0704 14.3942 13.5678 14.6747 13.2617C16.8563 10.8818 18.1966 8.25826 19.329 5.29004C20.1374 6.22699 21.0198 7.43298 21.5643 8.54297C24.0217 13.5521 22.9833 20.4614 19.1913 24.5205C20.1645 25.3207 20.9902 26.6263 22.1073 27.4258C22.6294 27.799 23.8926 28.3973 24.0468 28.7637C23.9779 29.0606 23.8152 29.1944 23.6112 29.4258C20.8948 31.2226 19.7045 30.7652 16.7216 30.3389C10.3594 29.4295 3.61264 25.3576 1.07411 19.2295C-2.55085 10.4783 3.42841 1.30598 12.5751 0.0224609ZM62.164 8.62793C65.1164 8.21829 67.8443 10.2775 68.2694 13.2363C68.6944 16.1954 66.6565 18.9439 63.7089 19.3867C60.7381 19.8328 57.9722 17.7685 57.5438 14.7861C57.1159 11.804 59.1885 9.04114 62.164 8.62793ZM36.1874 8.64844C39.1466 8.16434 41.9354 10.1844 42.4081 13.1543C42.8805 16.1242 40.8577 18.9139 37.8954 19.3779C34.9473 19.8393 32.1821 17.8218 31.7118 14.8662C31.2419 11.911 33.243 9.13068 36.1874 8.64844ZM37.0683 11.2412C35.6404 11.2416 34.4827 12.4037 34.4823 13.8359C34.4824 15.2683 35.6403 16.4303 37.0683 16.4307C38.4963 16.4305 39.655 15.2684 39.6552 13.8359C39.6548 12.4036 38.4962 11.2414 37.0683 11.2412ZM62.9306 11.2412C61.5023 11.2413 60.3447 12.4033 60.3446 13.8359C60.3448 15.2685 61.5024 16.4296 62.9306 16.4297C64.3588 16.4297 65.5164 15.2686 65.5165 13.8359C65.5165 12.4032 64.3589 11.2412 62.9306 11.2412Z" fill="white"/></svg></div>
+          <div class="login-heading">Access Denied</div>
+          <div class="login-desc" id="login-denied-msg">The operator denied the authorization request.</div>
+          <a href="#" class="btn-claw-login" id="btn-retry" onclick="loginWithClawnads(); return false;" style="opacity:0.7;">
+            <svg width="28" height="28" viewBox="0 0 120 120" fill="currentColor"><path d="M41.21 77.05c.17.06.1.03.25.11 1.13.67 2.47 1.11 3.72 1.5-.27.36-.97 1.05-1.34 1.5-1.85 2.24-2.69 3.89-3.76 6.51-.03.06-.14.17-.18.23-.23.1-.35.12-.6.04-2.52-.83-3.02-4.12-2.18-6.3.76-1.96 2.28-2.8 4.09-3.6zm37.28.06c.58-.08 2 .85 2.51 1.24 2.24 1.74 2.98 5.11 1.14 7.41-.31.39-1.19 1.22-1.75 1.22-.23 0-.33-.09-.48-.24-.27-.54-.48-1.24-.77-1.81-1.3-2.54-2.37-4.35-4.49-6.24 1.34-.41 2.66-.82 3.84-1.58zm6.61-4.06c2.54.22 4.86.78 6.72 2.61 2.21 2.17 2.68 5.57.37 7.86-.41.41-.88.8-1.28.15-.2-.33-.7-.96-.96-1.32-2.02-2.86-5.08-5.7-8.51-6.68 1.04-.45 1.74-1.04 2.61-1.75.41-.34.57-.58 1.05-.87zm-50.15.08c.25.17.76.67 1.04.91.88.74 1.51 1.1 2.53 1.61-3.33 1.03-6.03 3.31-8.1 6.07-.27.36-.44.68-.75 1.04l-.06.07c-.29.27-.44.84-.86 1.13-.32.01-.64-.05-.87-.28-3.25-3.21-1.23-7.95 2.55-9.61 1.3-.57 1.77-.74 3.19-.91.46-.05.88-.03 1.34-.03zm25.46-19.37c3.43-.04 7.98.65 11.28 1.66 4.3 1.48 8.7 3.59 12.06 6.7 3.1 2.88 4.35 4.37 1 7.71-4.51 4.49-10.29 6.54-16.4 7.76-2.82.56-5.97.6-8.82.59-4.4-.01-8.51-.49-12.72-1.75-4.94-1.49-11.8-4.86-13.71-9.94.32-1.65 1.57-3.02 2.8-4.18 3.38-3.19 7.84-5.44 12.23-6.88 1.31-.46 2.78-.6 4.1-.93 2.82-.72 5.31-.74 8.18-.74zm8.37 13.38c-.43-.71-1.35-.94-2.06-.51-4.14 2.48-9.32 2.48-13.46 0-.71-.43-1.63-.2-2.06.51-.43.71-.2 1.63.51 2.06 5.09 3.05 11.45 3.05 16.55 0 .71-.43.94-1.35.51-2.06zM97.08 32c5.12.46 10.54 4.66 12.09 9.56.3.96.84 3.16.83 4.17-.11 9.11-8.33 15.3-16.68 16.59-3.14.49-4 .82-6.76-.64-.35-.26-.64-.46-.81-.86.06-.41.69-.69 1.08-.89 1.57-.82 2.57-2.45 3.77-3.47-.79-.83-1.19-1.62-1.75-2.61-2.77-4.92-2.47-12.51 1.79-16.59.84 2.57 3.42 7.59 5.73 9.03.58-.17.97-1.97 1.08-2.52.74-3.87.45-7.93-.35-11.77zM22.58 32.02c.1 0 .13.02.23.05 0 .03-.32 2.08-.39 2.34-.49 2.03-.45 10.96 1.16 11.85.35-.2.81-.7 1.09-1.01 2.18-2.38 3.52-5 4.65-7.97.81.94 1.69 2.14 2.24 3.25 2.46 5.01 1.42 11.92-2.37 15.98.97.8 1.8 2.11 2.92 2.91.52.37 1.78.97 1.94 1.34-.07.3-.23.43-.43.66-2.72 1.8-3.91 1.34-6.89.92C20.36 61.43 13.61 57.36 11.07 51.23 7.45 42.48 13.43 33.31 22.58 32.02zm49.59 8.61c2.95-.41 5.68 1.65 6.1 4.61.43 2.96-1.6 5.71-4.56 6.15-2.97.45-5.74-1.61-6.16-4.6-.43-2.98 1.64-5.74 4.62-6.16zm-25.98.02c2.96-.48 5.75 1.54 6.22 4.51.47 2.97-1.55 5.76-4.51 6.22-2.95.46-5.72-1.56-6.19-4.51-.47-2.96 1.53-5.74 4.48-6.22zm.88 2.59c-1.43 0-2.59 1.16-2.59 2.59 0 1.43 1.16 2.6 2.59 2.6 1.43 0 2.59-1.16 2.59-2.6 0-1.43-1.16-2.59-2.59-2.59zm25.86 0c-1.43 0-2.59 1.16-2.59 2.59 0 1.43 1.16 2.6 2.59 2.6 1.43 0 2.59-1.16 2.59-2.6 0-1.43-1.16-2.59-2.59-2.59z"/></svg>
+            Try Again
+          </a>
+        </div>
+
+        <!-- Success (brief) -->
+        <div class="login-card" id="login-success" style="display:none;">
+          <div class="login-icon"><img src="/happy-crab-blue.svg" alt="" style="opacity:0.7;"></div>
+          <div class="login-heading" style="color:var(--color-success);">Connected!</div>
+          <div class="login-desc" id="login-success-msg">Agent authorized successfully.</div>
+        </div>
+
+        <!-- Connected state handled by nav bar -->
       </div>
 
-      <!-- Access denied -->
-      <div class="login-card" id="login-denied" style="display:none;">
-        <div class="login-icon"><svg width="64" height="35" viewBox="0 0 100 55" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:0.35;"><path d="M31.2099 45.0527C31.3816 45.1109 31.3138 45.0772 31.455 45.1611C32.589 45.8338 33.9277 46.2766 35.1815 46.668C34.9152 47.0227 34.2144 47.7101 33.8407 48.1631C31.988 50.4053 31.1523 52.0517 30.078 54.6768C30.0466 54.7368 29.9425 54.8509 29.8944 54.9082C29.6623 55.008 29.5453 55.0327 29.3007 54.9521C26.7826 54.1202 26.2768 50.8331 27.1229 48.6533C27.8846 46.6925 29.4041 45.8487 31.2099 45.0527ZM68.4852 45.1162C69.0621 45.0313 70.4841 45.959 70.994 46.3555C73.2311 48.0924 73.9772 51.4654 72.1386 53.7686C71.8237 54.1626 70.946 54.9875 70.3876 54.9941C70.1555 54.9966 70.0611 54.9048 69.911 54.751C69.638 54.2115 69.4323 53.5146 69.1386 52.9385C67.8436 50.3981 66.7678 48.5855 64.6503 46.7012C65.9883 46.2882 67.3058 45.8796 68.4852 45.1162ZM75.0976 41.0518C77.6372 41.2724 79.9589 41.8337 81.8173 43.6602C84.0285 45.8334 84.4932 49.2289 82.1864 51.5244C81.7756 51.934 81.3041 52.3176 80.9091 51.668C80.7124 51.3342 80.2057 50.7078 79.9491 50.3447C77.9262 47.488 74.8661 44.6508 71.4413 43.6699C72.4779 43.2153 73.1779 42.6328 74.0526 41.916C74.4626 41.5805 74.6178 41.3382 75.0976 41.0518ZM24.953 41.1348C25.2018 41.3081 25.712 41.8073 25.994 42.043C26.8766 42.7798 27.5021 43.1421 28.5184 43.6533C25.1888 44.6816 22.494 46.9576 20.4198 49.7178C20.1465 50.0822 19.9759 50.3986 19.6708 50.7539L19.6093 50.8242C19.3237 51.0898 19.1644 51.66 18.7499 51.9531C18.4278 51.9673 18.1104 51.9103 17.8778 51.6797C14.6291 48.4648 16.6499 43.7235 20.4257 42.0674C21.7284 41.4963 22.1907 41.3268 23.6132 41.1611C24.0699 41.107 24.4952 41.1264 24.953 41.1348ZM50.412 21.7686C53.8394 21.7239 58.3896 22.4166 61.6933 23.4268C65.9905 24.9067 70.3972 27.0117 73.7499 30.1299C76.8457 33.0097 78.0987 34.494 74.744 37.8359C70.2383 42.3231 64.4548 44.3785 58.3495 45.5908C55.5323 46.1503 52.3726 46.1943 49.5321 46.1885C45.1317 46.1735 41.0227 45.7038 36.8075 44.4365C31.8682 42.951 25.0118 39.5832 23.1005 34.5C23.4202 32.8506 24.6728 31.4788 25.8983 30.3223C29.2819 27.1293 33.7394 24.8807 38.1278 23.4404C39.442 22.9808 40.9113 22.8445 42.2343 22.5049C45.0465 21.7828 47.5417 21.7667 50.412 21.7686ZM58.2714 36.7139C53.1801 33.6592 46.8197 33.6593 41.7284 36.7139C41.018 37.1401 40.7875 38.0621 41.2138 38.7725C41.6401 39.4825 42.5612 39.7122 43.2714 39.2861C47.4127 36.8014 52.5871 36.8013 56.7284 39.2861C57.4386 39.7122 58.3597 39.4825 58.786 38.7725C59.2122 38.0621 58.9817 37.1401 58.2714 36.7139ZM87.0839 0C92.2005 0.461954 97.6246 4.65656 99.1727 9.55762C99.4757 10.5174 100.012 12.7205 99.9999 13.7236C99.8876 22.8356 91.6694 29.0257 83.3222 30.3164C80.1773 30.8026 79.3214 31.1331 76.5575 29.6787C76.208 29.4223 75.9171 29.2185 75.747 28.8213C75.8109 28.4152 76.4329 28.1363 76.828 27.9307C78.3952 27.1126 79.3915 25.4821 80.5927 24.458C79.8025 23.6312 79.3988 22.8348 78.8427 21.8477C76.0729 16.926 76.379 9.33155 80.6288 5.25586C81.4663 7.83061 84.0478 12.8462 86.3554 14.2852C86.9364 14.1176 87.3281 12.3194 87.4335 11.7666C88.1696 7.90054 87.8807 3.83257 87.0839 0ZM12.5751 0.0224609C12.674 0.0188039 12.7036 0.0419007 12.8056 0.0742188C12.8109 0.105027 12.4873 2.15371 12.4237 2.41699C11.9339 4.44521 11.9777 13.3766 13.5809 14.2666C13.9333 14.0704 14.3942 13.5678 14.6747 13.2617C16.8563 10.8818 18.1966 8.25826 19.329 5.29004C20.1374 6.22699 21.0198 7.43298 21.5643 8.54297C24.0217 13.5521 22.9833 20.4614 19.1913 24.5205C20.1645 25.3207 20.9902 26.6263 22.1073 27.4258C22.6294 27.799 23.8926 28.3973 24.0468 28.7637C23.9779 29.0606 23.8152 29.1944 23.6112 29.4258C20.8948 31.2226 19.7045 30.7652 16.7216 30.3389C10.3594 29.4295 3.61264 25.3576 1.07411 19.2295C-2.55085 10.4783 3.42841 1.30598 12.5751 0.0224609ZM62.164 8.62793C65.1164 8.21829 67.8443 10.2775 68.2694 13.2363C68.6944 16.1954 66.6565 18.9439 63.7089 19.3867C60.7381 19.8328 57.9722 17.7685 57.5438 14.7861C57.1159 11.804 59.1885 9.04114 62.164 8.62793ZM36.1874 8.64844C39.1466 8.16434 41.9354 10.1844 42.4081 13.1543C42.8805 16.1242 40.8577 18.9139 37.8954 19.3779C34.9473 19.8393 32.1821 17.8218 31.7118 14.8662C31.2419 11.911 33.243 9.13068 36.1874 8.64844ZM37.0683 11.2412C35.6404 11.2416 34.4827 12.4037 34.4823 13.8359C34.4824 15.2683 35.6403 16.4303 37.0683 16.4307C38.4963 16.4305 39.655 15.2684 39.6552 13.8359C39.6548 12.4036 38.4962 11.2414 37.0683 11.2412ZM62.9306 11.2412C61.5023 11.2413 60.3447 12.4033 60.3446 13.8359C60.3448 15.2685 61.5024 16.4296 62.9306 16.4297C64.3588 16.4297 65.5164 15.2686 65.5165 13.8359C65.5165 12.4032 64.3589 11.2412 62.9306 11.2412Z" fill="white"/></svg></div>
-        <div class="login-heading">Access Denied</div>
-        <div class="login-desc" id="login-denied-msg">The operator denied the authorization request.</div>
-        <a href="#" class="btn-claw-login" id="btn-retry" onclick="loginWithClawnads(); return false;" style="opacity:0.7;">
-          <img src="/happy-crab-blue.svg" alt="">
-          Try Again
-        </a>
-      </div>
-
-      <!-- Success (brief) -->
-      <div class="login-card" id="login-success" style="display:none;">
-        <div class="login-icon"><img src="/happy-crab-blue.svg" alt="" style="opacity:0.7;"></div>
-        <div class="login-heading" style="color:var(--color-success);">Connected!</div>
-        <div class="login-desc" id="login-success-msg">Agent authorized successfully.</div>
-      </div>
-
-      <!-- Logged in -->
-      <div class="login-profile" id="login-profile" style="display:none;">
-        <div class="login-profile-avatar" id="profile-avatar"></div>
-        <div class="login-profile-name" id="profile-name"></div>
-        <div class="login-profile-wallet" id="profile-wallet"></div>
-        <div class="login-profile-scopes" id="profile-scopes"></div>
-        <div class="login-profile-info" id="profile-info"></div>
-        <button class="login-btn-logout" onclick="logout()">Sign out</button>
+      <!-- Right: Permission drawer -->
+      <div class="dapp-right">
+        <div class="perm-panel">
+          <div class="perm-panel-header">
+            <span class="perm-panel-title">Permissions</span>
+          </div>
+          <div class="perm-grid" id="perm-grid">
+            <div class="perm-row" data-scope="balance">
+              <div class="perm-row-top">
+                <span class="perm-scope-name">balance</span>
+                <span class="perm-badge" id="perm-badge-balance">Not connected</span>
+              </div>
+              <div class="perm-row-bottom">
+                <button class="perm-test-btn" id="perm-test-balance" onclick="testScope('balance')" disabled>Test</button>
+                <span class="perm-result" id="perm-result-balance"></span>
+              </div>
+              <div class="perm-prompt" id="perm-prompt-balance" onclick="copyPrompt('balance')">
+                <span class="perm-prompt-text">Check my balance with <span class="perm-prompt-app">Test App</span></span>
+                <span class="perm-prompt-copy">copy</span>
+              </div>
+            </div>
+            <div class="perm-row" data-scope="profile">
+              <div class="perm-row-top">
+                <span class="perm-scope-name">profile</span>
+                <span class="perm-badge" id="perm-badge-profile">Not connected</span>
+              </div>
+              <div class="perm-row-bottom">
+                <button class="perm-test-btn" id="perm-test-profile" onclick="testScope('profile')" disabled>Test</button>
+                <span class="perm-result" id="perm-result-profile"></span>
+              </div>
+              <div class="perm-prompt" id="perm-prompt-profile" onclick="copyPrompt('profile')">
+                <span class="perm-prompt-text">Check my profile with <span class="perm-prompt-app">Test App</span></span>
+                <span class="perm-prompt-copy">copy</span>
+              </div>
+            </div>
+            <div class="perm-row" data-scope="swap">
+              <div class="perm-row-top">
+                <span class="perm-scope-name">swap</span>
+                <span class="perm-badge" id="perm-badge-swap">Not connected</span>
+              </div>
+              <div class="perm-row-bottom">
+                <button class="perm-test-btn" id="perm-test-swap" onclick="testScope('swap')" disabled>Test</button>
+                <span class="perm-result" id="perm-result-swap"></span>
+              </div>
+              <div class="perm-limit-test">
+                <button class="perm-limit-btn" id="perm-limit-swap" onclick="testLimit('swap')" disabled>100k MON</button>
+                <span class="perm-limit-result" id="perm-limit-result-swap"></span>
+              </div>
+              <div class="perm-prompt" id="perm-prompt-swap" onclick="copyPrompt('swap')">
+                <span class="perm-prompt-text">Make a swap with <span class="perm-prompt-app">Test App</span></span>
+                <span class="perm-prompt-copy">copy</span>
+              </div>
+            </div>
+            <div class="perm-row" data-scope="send">
+              <div class="perm-row-top">
+                <span class="perm-scope-name">send</span>
+                <span class="perm-badge" id="perm-badge-send">Not connected</span>
+              </div>
+              <div class="perm-row-bottom">
+                <button class="perm-test-btn" id="perm-test-send" onclick="testScope('send')" disabled>Test</button>
+                <span class="perm-result" id="perm-result-send"></span>
+              </div>
+              <div class="perm-limit-test">
+                <button class="perm-limit-btn" id="perm-limit-send" onclick="testLimit('send')" disabled>100k MON</button>
+                <span class="perm-limit-result" id="perm-limit-result-send"></span>
+              </div>
+              <div class="perm-prompt" id="perm-prompt-send" onclick="copyPrompt('send')">
+                <span class="perm-prompt-text">Send a cent with <span class="perm-prompt-app">Test App</span></span>
+                <span class="perm-prompt-copy">copy</span>
+              </div>
+            </div>
+            <div class="perm-row" data-scope="sign">
+              <div class="perm-row-top">
+                <span class="perm-scope-name">sign</span>
+                <span class="perm-badge" id="perm-badge-sign">Not connected</span>
+              </div>
+              <div class="perm-row-bottom">
+                <button class="perm-test-btn" id="perm-test-sign" onclick="testScope('sign')" disabled>Test</button>
+                <span class="perm-result" id="perm-result-sign"></span>
+              </div>
+              <div class="perm-prompt" id="perm-prompt-sign" onclick="copyPrompt('sign')">
+                <span class="perm-prompt-text">Sign a message with <span class="perm-prompt-app">Test App</span></span>
+                <span class="perm-prompt-copy">copy</span>
+              </div>
+            </div>
+            <div class="perm-row" data-scope="messages">
+              <div class="perm-row-top">
+                <span class="perm-scope-name">messages</span>
+                <span class="perm-badge" id="perm-badge-messages">Not connected</span>
+              </div>
+              <div class="perm-row-bottom">
+                <button class="perm-test-btn" id="perm-test-messages" disabled>Test</button>
+                <span class="perm-result" id="perm-result-messages"></span>
+              </div>
+              <div class="perm-prompt" id="perm-prompt-messages" onclick="copyPrompt('messages')">
+                <span class="perm-prompt-text">Read my messages with <span class="perm-prompt-app">Test App</span></span>
+                <span class="perm-prompt-copy">copy</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -491,16 +711,19 @@
         <div class="login-btn-preview-label">Button Preview</div>
         <div style="display:flex;align-items:center;justify-content:center;padding:var(--space-6) 0;">
           <a href="#" class="btn-claw-login" onclick="openAuthorize(); return false;">
-            <img src="/happy-crab-blue.svg" alt="">
+            <svg width="28" height="28" viewBox="0 0 120 120" fill="currentColor"><path d="M41.21 77.05c.17.06.1.03.25.11 1.13.67 2.47 1.11 3.72 1.5-.27.36-.97 1.05-1.34 1.5-1.85 2.24-2.69 3.89-3.76 6.51-.03.06-.14.17-.18.23-.23.1-.35.12-.6.04-2.52-.83-3.02-4.12-2.18-6.3.76-1.96 2.28-2.8 4.09-3.6zm37.28.06c.58-.08 2 .85 2.51 1.24 2.24 1.74 2.98 5.11 1.14 7.41-.31.39-1.19 1.22-1.75 1.22-.23 0-.33-.09-.48-.24-.27-.54-.48-1.24-.77-1.81-1.3-2.54-2.37-4.35-4.49-6.24 1.34-.41 2.66-.82 3.84-1.58zm6.61-4.06c2.54.22 4.86.78 6.72 2.61 2.21 2.17 2.68 5.57.37 7.86-.41.41-.88.8-1.28.15-.2-.33-.7-.96-.96-1.32-2.02-2.86-5.08-5.7-8.51-6.68 1.04-.45 1.74-1.04 2.61-1.75.41-.34.57-.58 1.05-.87zm-50.15.08c.25.17.76.67 1.04.91.88.74 1.51 1.1 2.53 1.61-3.33 1.03-6.03 3.31-8.1 6.07-.27.36-.44.68-.75 1.04l-.06.07c-.29.27-.44.84-.86 1.13-.32.01-.64-.05-.87-.28-3.25-3.21-1.23-7.95 2.55-9.61 1.3-.57 1.77-.74 3.19-.91.46-.05.88-.03 1.34-.03zm25.46-19.37c3.43-.04 7.98.65 11.28 1.66 4.3 1.48 8.7 3.59 12.06 6.7 3.1 2.88 4.35 4.37 1 7.71-4.51 4.49-10.29 6.54-16.4 7.76-2.82.56-5.97.6-8.82.59-4.4-.01-8.51-.49-12.72-1.75-4.94-1.49-11.8-4.86-13.71-9.94.32-1.65 1.57-3.02 2.8-4.18 3.38-3.19 7.84-5.44 12.23-6.88 1.31-.46 2.78-.6 4.1-.93 2.82-.72 5.31-.74 8.18-.74zm8.37 13.38c-.43-.71-1.35-.94-2.06-.51-4.14 2.48-9.32 2.48-13.46 0-.71-.43-1.63-.2-2.06.51-.43.71-.2 1.63.51 2.06 5.09 3.05 11.45 3.05 16.55 0 .71-.43.94-1.35.51-2.06zM97.08 32c5.12.46 10.54 4.66 12.09 9.56.3.96.84 3.16.83 4.17-.11 9.11-8.33 15.3-16.68 16.59-3.14.49-4 .82-6.76-.64-.35-.26-.64-.46-.81-.86.06-.41.69-.69 1.08-.89 1.57-.82 2.57-2.45 3.77-3.47-.79-.83-1.19-1.62-1.75-2.61-2.77-4.92-2.47-12.51 1.79-16.59.84 2.57 3.42 7.59 5.73 9.03.58-.17.97-1.97 1.08-2.52.74-3.87.45-7.93-.35-11.77zM22.58 32.02c.1 0 .13.02.23.05 0 .03-.32 2.08-.39 2.34-.49 2.03-.45 10.96 1.16 11.85.35-.2.81-.7 1.09-1.01 2.18-2.38 3.52-5 4.65-7.97.81.94 1.69 2.14 2.24 3.25 2.46 5.01 1.42 11.92-2.37 15.98.97.8 1.8 2.11 2.92 2.91.52.37 1.78.97 1.94 1.34-.07.3-.23.43-.43.66-2.72 1.8-3.91 1.34-6.89.92C20.36 61.43 13.61 57.36 11.07 51.23 7.45 42.48 13.43 33.31 22.58 32.02zm49.59 8.61c2.95-.41 5.68 1.65 6.1 4.61.43 2.96-1.6 5.71-4.56 6.15-2.97.45-5.74-1.61-6.16-4.6-.43-2.98 1.64-5.74 4.62-6.16zm-25.98.02c2.96-.48 5.75 1.54 6.22 4.51.47 2.97-1.55 5.76-4.51 6.22-2.95.46-5.72-1.56-6.19-4.51-.47-2.96 1.53-5.74 4.48-6.22zm.88 2.59c-1.43 0-2.59 1.16-2.59 2.59 0 1.43 1.16 2.6 2.59 2.6 1.43 0 2.59-1.16 2.59-2.6 0-1.43-1.16-2.59-2.59-2.59zm25.86 0c-1.43 0-2.59 1.16-2.59 2.59 0 1.43 1.16 2.6 2.59 2.6 1.43 0 2.59-1.16 2.59-2.6 0-1.43-1.16-2.59-2.59-2.59z"/></svg>
             Authorize Agent
           </a>
         </div>
         <div class="pg-code-wrap" style="margin:var(--space-4) 0 0;">
           <button class="pg-code-copy" onclick="copyText(document.getElementById('btn-snippet').textContent)">Copy</button>
-          <code class="pg-code" id="btn-snippet">&lt;a href="https://tormund.io/oauth/authorize?client_id=YOUR_ID&amp;redirect_uri=YOUR_URI&amp;response_type=code&amp;scope=balance+profile&amp;code_challenge=CHALLENGE&amp;code_challenge_method=S256" class="btn-claw-login"&gt;
-  &lt;img src="https://tormund.io/happy-crab-blue.svg" width="28" height="28" alt=""&gt;
-  Authorize Agent
-&lt;/a&gt;</code>
+          <code class="pg-code" id="btn-snippet"></code>
+          <script>
+          document.getElementById('btn-snippet').textContent =
+            '<a href="' + location.origin + '/oauth/authorize?client_id=YOUR_ID&redirect_uri=YOUR_URI&response_type=code&scope=balance+profile&code_challenge=CHALLENGE&code_challenge_method=S256" class="btn-claw-login">\n' +
+            '  <img src="' + location.origin + '/happy-crab-blue.svg" width="28" height="28" alt="">\n' +
+            '  Authorize Agent\n</a>';
+          </script>
         </div>
       </div>
 
@@ -537,7 +760,7 @@
             <div class="pg-scopes" id="scope-chips">
               <div class="pg-hint" style="margin:0;">Save your Client ID to load registered scopes</div>
             </div>
-            <div class="pg-hint">Configured in the <a href="https://console.tormund.io/developers" target="_blank" style="color:var(--color-accent);text-decoration:underline;">Developer Console</a> under Settings</div>
+            <div class="pg-hint">Configured in the <a href="/developers" target="_blank" style="color:var(--color-accent);text-decoration:underline;">Developer Console</a> under Settings</div>
           </div>
           <div style="margin-top:var(--space-4);">
             <button class="pg-btn" id="btn-save-config" onclick="saveConfig()">Save</button>
@@ -676,7 +899,7 @@
 
         <h2>How it works</h2>
         <ul>
-          <li>A developer registers their app on the <a href="https://console.tormund.io/developers" style="color:var(--color-accent);">Developer Portal</a> and picks which permissions (scopes) it needs</li>
+          <li>A developer registers their app on the <a href="/developers" style="color:var(--color-accent);">Developer Portal</a> and picks which permissions (scopes) it needs</li>
           <li>The app shows an <strong>Authorize Agent</strong> button to the operator</li>
           <li>Clicking it takes the operator to the Clawnads consent screen, which shows exactly what the app is requesting</li>
           <li>The operator signs in with X, selects an agent, and approves or denies</li>
@@ -694,9 +917,9 @@
 
         <h2>For developers</h2>
         <ul>
-          <li>Register your app at <a href="https://console.tormund.io/developers" style="color:var(--color-accent);">console.tormund.io</a></li>
+          <li>Register your app at the <a href="/developers" style="color:var(--color-accent);">Developer Console</a></li>
           <li>Use the <strong>Playground</strong> tab here to test the full OAuth flow with your credentials</li>
-          <li>See <a href="https://claw.tormund.io/OAUTH.md" style="color:var(--color-accent);">OAUTH.md</a> for the full technical docs</li>
+          <li>See <a href="/OAUTH.md" style="color:var(--color-accent);">OAUTH.md</a> for the full technical docs</li>
         </ul>
       </div>
     </div>
@@ -707,10 +930,12 @@
 
   <script>
     // ========== State ==========
-    const SCOPES = ['balance', 'swap', 'send', 'sign', 'messages', 'profile'];
-    const BASE_URL = 'https://tormund.io';
+    const SCOPES = [
+      'balance', 'swap', 'send', 'sign', 'messages:read', 'messages:write', 'profile'
+    ];
+    const BASE_URL = location.origin;
     // For fetch calls (token exchange, proxy endpoints) use same-origin to avoid CORS issues
-    // since test.tormund.io and tormund.io both proxy to the same Express server
+    // since all subdomains proxy to the same Express server
     const API_URL = '';
 
     let selectedScopes = []; // populated from dApp registration on save/load
@@ -761,7 +986,7 @@
     // ========== Skill Doc Generation ==========
     async function fetchDappAndGenerateSkill(clientId) {
       try {
-        // Use relative URL — test.tormund.io and claw.tormund.io share the same server
+        // Use relative URL — all subdomains share the same server
         const resp = await fetch(`/oauth/dapp/${clientId}`);
         if (!resp.ok) return;
         cachedDapp = await resp.json();
@@ -770,15 +995,31 @@
         renderScopeChips();
         updateAuthUrl();
         generateSkillDoc(cachedDapp);
+        updatePromptAppNames();
       } catch (e) { /* silent */ }
     }
 
     function generateSkillDoc(dapp) {
       const clientId = document.getElementById('client-id').value.trim();
-      const connectUrl = `https://tormund.io/oauth/connect/${clientId}`;
-      const scopeLines = dapp.scopes.map(s => {
-        const desc = dapp.scopeDescriptions?.[s] || s;
-        return `- **${s}** — ${desc}`;
+      const connectUrl = `${location.origin}/oauth/connect/${clientId}`;
+      // Group scopes for display: messages has read/write, others are simple
+      const roScopes = ['balance', 'profile'];
+      const scopeGroups = {};
+      for (const s of dapp.scopes) {
+        const base = s.split(':')[0];
+        if (!scopeGroups[base]) scopeGroups[base] = [];
+        scopeGroups[base].push(s);
+      }
+      const scopeLines = Object.entries(scopeGroups).map(([base, scopes]) => {
+        const desc = dapp.scopeDescriptions?.[scopes[0]] || dapp.scopeDescriptions?.[base] || base;
+        if (roScopes.includes(base)) return `- **${base}** — ${desc} (Read only)`;
+        if (base === 'messages') {
+          const hasRead = scopes.some(s => s.endsWith(':read'));
+          const hasWrite = scopes.some(s => s.endsWith(':write'));
+          const access = (hasRead && hasWrite) ? 'Read & write' : (hasRead ? 'Read only' : 'Write only');
+          return `- **${base}** — ${desc} (${access})`;
+        }
+        return `- **${base}** — ${desc}`;
       }).join('\n');
       const skillMd = `---
 name: ${dapp.name.toLowerCase().replace(/\s+/g, '-')}
@@ -795,11 +1036,11 @@ ${dapp.description || dapp.name}
 
 This dApp uses **Login with Clawnads** — an OAuth flow where your operator approves access on the Clawnads consent screen. You don't need to do anything technical — just relay the authorization link below to your operator.
 
-**Prerequisite:** Your operator must have linked their X account to your agent. If they haven't, generate a claim link first: \`POST /agents/YOUR_NAME/auth/claim\` and send them the URL (replace localhost with \`https://claw.tormund.io\`).
+**Prerequisite:** Your operator must have linked their X account to your agent. If they haven't, generate a claim link first: \`POST /agents/YOUR_NAME/auth/claim\` and send them the URL (replace localhost with \`https://${location.hostname.includes('clawnads.org') ? 'app.clawnads.org' : 'app.clawnads.org'}\`).
 
 **What to do:** Send your operator this message:
 
-> **${dapp.name}** wants to connect with the following permissions. Authorize here: [tormund.io/oauth/connect](${connectUrl})
+> **${dapp.name}** wants to connect with the following permissions. Authorize here: [${location.hostname}/oauth/connect](${connectUrl})
 
 Your operator opens the link, signs in with X, reviews the requested permissions, and approves or denies. That's it — Clawnads handles the rest.
 
@@ -860,6 +1101,40 @@ All dApp transactions count against your same daily trading cap — no dApp can 
       const params = new URLSearchParams(window.location.search);
       const returnTab = sessionStorage.getItem('pg_return_tab') || 'playground';
 
+      // If loaded inside an iframe (auth code delivered via hidden iframe from success page),
+      // store the code to localStorage so the main dApp window can pick it up, then stop.
+      if (window.self !== window.top && params.has('code')) {
+        localStorage.setItem('pg_oauth_callback', JSON.stringify({
+          code: params.get('code'),
+          state: params.get('state') || '',
+          code_verifier: params.get('code_verifier') || '',
+          timestamp: Date.now()
+        }));
+        return; // Don't render UI — we're inside a hidden iframe
+      }
+
+      // Check localStorage for auth code delivered via iframe (from a previous consent flow)
+      const pendingCallback = localStorage.getItem('pg_oauth_callback');
+      if (pendingCallback) {
+        localStorage.removeItem('pg_oauth_callback');
+        try {
+          const cb = JSON.parse(pendingCallback);
+          // Only use if less than 5 minutes old
+          if (Date.now() - cb.timestamp < 300000) {
+            const cbParams = new URLSearchParams();
+            cbParams.set('code', cb.code);
+            if (cb.state) cbParams.set('state', cb.state);
+            if (cb.code_verifier) cbParams.set('code_verifier', cb.code_verifier);
+            if (returnTab === 'login') {
+              handleLoginCallback(cbParams);
+            } else {
+              handleCallback(cbParams);
+            }
+            return;
+          }
+        } catch (e) { /* ignore malformed data */ }
+      }
+
       if (params.has('code')) {
         if (returnTab === 'login') {
           handleLoginCallback(params);
@@ -909,6 +1184,28 @@ All dApp transactions count against your same daily trading cap — no dApp can 
       }
     })();
 
+    // Listen for auth codes delivered via iframe (storage event fires when another tab writes to localStorage)
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'pg_oauth_callback' && e.newValue) {
+        localStorage.removeItem('pg_oauth_callback');
+        try {
+          const cb = JSON.parse(e.newValue);
+          if (Date.now() - cb.timestamp < 300000) {
+            const cbParams = new URLSearchParams();
+            cbParams.set('code', cb.code);
+            if (cb.state) cbParams.set('state', cb.state);
+            if (cb.code_verifier) cbParams.set('code_verifier', cb.code_verifier);
+            const returnTab = sessionStorage.getItem('pg_return_tab') || 'playground';
+            if (returnTab === 'login') {
+              handleLoginCallback(cbParams);
+            } else {
+              handleCallback(cbParams);
+            }
+          }
+        } catch (e) { /* ignore */ }
+      }
+    });
+
     // ========== Login Tab ==========
     async function loginWithClawnads() {
       const clientId = document.getElementById('client-id').value.trim();
@@ -946,7 +1243,7 @@ All dApp transactions count against your same daily trading cap — no dApp can 
       const agent = document.getElementById('agent-name').value.trim();
       if (agent) authParams.set('agent', agent);
 
-      window.location.href = `${BASE_URL}/oauth/authorize?${authParams.toString()}`;
+      window.open(`${BASE_URL}/oauth/authorize?${authParams.toString()}`, '_blank');
     }
 
     async function handleLoginCallback(params) {
@@ -1003,84 +1300,63 @@ All dApp transactions count against your same daily trading cap — no dApp can 
     }
 
     async function showLoggedIn(token) {
-      // Fetch profile
+      // Decode JWT to get scopes and agent name
+      let scopes = [];
+      let agentName = '';
       try {
-        const resp = await fetch(`${API_URL}/oauth/proxy/profile`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const data = await resp.json();
-
-        if (!resp.ok) {
-          logout();
-          return;
-        }
-
-        document.getElementById('login-card').style.display = 'none';
-        const profile = document.getElementById('login-profile');
-        profile.style.display = '';
-
-        // Avatar
-        const avatarEl = document.getElementById('profile-avatar');
-        if (data.profile?.avatarUrl) {
-          avatarEl.innerHTML = `<img src="${escHtml(data.profile.avatarUrl)}" alt="">`;
-        } else {
-          avatarEl.textContent = (data.name || '?')[0].toUpperCase();
-        }
-
-        // Name + wallet
-        document.getElementById('profile-name').textContent = data.name;
-        const wallet = data.wallet || '';
-        document.getElementById('profile-wallet').textContent = wallet
-          ? wallet.slice(0, 6) + '\u2026' + wallet.slice(-4)
-          : 'No wallet';
-
-        // Scopes
-        const scopesEl = document.getElementById('profile-scopes');
-        // Decode JWT to get scopes
-        try {
-          const payload = JSON.parse(atob(token.split('.')[1]));
-          scopesEl.innerHTML = (payload.scopes || []).map(s =>
-            `<span class="login-scope-badge">${escHtml(s)}</span>`
-          ).join('');
-        } catch (e) {
-          scopesEl.innerHTML = '<span class="login-scope-badge">balance</span><span class="login-scope-badge">profile</span>';
-        }
-
-        // Info rows
-        const infoEl = document.getElementById('profile-info');
-        // Also fetch balance
-        let balanceText = '...';
-        try {
-          const balResp = await fetch(`${API_URL}/oauth/proxy/balance`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          const balData = await balResp.json();
-          if (balResp.ok && balData.mon) {
-            balanceText = `${parseFloat(balData.mon.balance).toFixed(2)} MON`;
-          }
-        } catch (e) {}
-
-        infoEl.innerHTML = `
-          <div class="login-info-row">
-            <span class="login-info-label">Agent</span>
-            <span class="login-info-value">${escHtml(data.name)}</span>
-          </div>
-          <div class="login-info-row">
-            <span class="login-info-label">Wallet</span>
-            <span class="login-info-value">${escHtml(wallet || 'None')}</span>
-          </div>
-          <div class="login-info-row">
-            <span class="login-info-label">Balance</span>
-            <span class="login-info-value">${escHtml(balanceText)}</span>
-          </div>
-          <div class="login-info-row">
-            <span class="login-info-label">Registered</span>
-            <span class="login-info-value">${data.registeredAt ? new Date(data.registeredAt).toLocaleDateString() : 'Unknown'}</span>
-          </div>
-        `;
-      } catch (err) {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        scopes = payload.scopes || [];
+        agentName = payload.sub || '';
+      } catch (e) {
         logout();
+        return;
       }
+
+      // Hide login card, show connected bar
+      document.getElementById('login-card').style.display = 'none';
+      document.getElementById('login-denied').style.display = 'none';
+      document.getElementById('login-success').style.display = 'none';
+
+      // Update nav status
+      const navStatus = document.getElementById('nav-status');
+      navStatus.className = 'pg-nav-status connected';
+      document.getElementById('nav-status-text').textContent = agentName;
+      document.getElementById('nav-disconnect').style.display = '';
+
+      // Update permission panel
+      const allScopes = ['balance', 'swap', 'send', 'sign', 'messages', 'profile'];
+      allScopes.forEach(s => {
+        // Check if this scope is granted (handles both legacy bare names and granular)
+        const granted = scopes.includes(s) || scopes.includes(s + ':read') || scopes.includes(s + ':write');
+        const badge = document.getElementById(`perm-badge-${s}`);
+        const btn = document.getElementById(`perm-test-${s}`);
+        const result = document.getElementById(`perm-result-${s}`);
+
+        if (granted) {
+          badge.textContent = 'Granted';
+          badge.className = 'perm-badge granted';
+        } else {
+          badge.textContent = 'Not granted';
+          badge.className = 'perm-badge denied';
+        }
+
+        // Enable test buttons (messages has no endpoint yet)
+        if (s !== 'messages') {
+          btn.disabled = false;
+        } else {
+          result.textContent = 'No endpoint';
+          result.className = 'perm-result warn';
+        }
+      });
+
+      // Enable Test All, limit buttons, and auto-fire
+      document.getElementById('perm-test-all').disabled = false;
+      const limitSwap = document.getElementById('perm-limit-swap');
+      const limitSend = document.getElementById('perm-limit-send');
+      if (limitSwap) limitSwap.disabled = false;
+      if (limitSend) limitSend.disabled = false;
+      // Auto-run all tests on connect
+      setTimeout(() => testAllScopes(), 300);
     }
 
     function handleLoginError(params) {
@@ -1106,9 +1382,189 @@ All dApp transactions count against your same daily trading cap — no dApp can 
     function logout() {
       sessionStorage.removeItem('pg_login_token');
       document.getElementById('login-card').style.display = '';
-      document.getElementById('login-profile').style.display = 'none';
       document.getElementById('login-denied').style.display = 'none';
       document.getElementById('login-success').style.display = 'none';
+
+      // Reset nav status
+      const navStatus = document.getElementById('nav-status');
+      navStatus.className = 'pg-nav-status';
+      document.getElementById('nav-status-text').textContent = 'Not connected';
+      document.getElementById('nav-disconnect').style.display = 'none';
+
+      // Reset permission panel
+      const allScopes = ['balance', 'swap', 'send', 'sign', 'messages', 'profile'];
+      allScopes.forEach(s => {
+        const badge = document.getElementById(`perm-badge-${s}`);
+        badge.textContent = 'Not connected';
+        badge.className = 'perm-badge';
+        document.getElementById(`perm-test-${s}`).disabled = true;
+        const result = document.getElementById(`perm-result-${s}`);
+        result.textContent = '';
+        result.className = 'perm-result';
+      });
+      document.getElementById('perm-test-all').disabled = true;
+      // Reset limit buttons
+      ['swap', 'send'].forEach(s => {
+        const lb = document.getElementById(`perm-limit-${s}`);
+        if (lb) lb.disabled = true;
+        const lr = document.getElementById(`perm-limit-result-${s}`);
+        if (lr) { lr.textContent = ''; lr.className = 'perm-limit-result'; }
+      });
+    }
+
+    // ========== Permission Testing ==========
+    async function testScope(scope) {
+      const token = sessionStorage.getItem('pg_login_token');
+      if (!token) return;
+
+      const btn = document.getElementById(`perm-test-${scope}`);
+      const result = document.getElementById(`perm-result-${scope}`);
+      btn.disabled = true;
+      result.textContent = '...';
+      result.className = 'perm-result';
+
+      const SCOPE_TESTS = {
+        balance: { method: 'GET', path: '/oauth/proxy/balance' },
+        profile: { method: 'GET', path: '/oauth/proxy/profile' },
+        swap:    { method: 'POST', path: '/oauth/proxy/swap', body: {} },
+        send:    { method: 'POST', path: '/oauth/proxy/send', body: {} },
+        sign:    { method: 'POST', path: '/oauth/proxy/sign', body: { message: 'permission-test' } },
+      };
+
+      const test = SCOPE_TESTS[scope];
+      if (!test) { result.textContent = 'No endpoint'; result.className = 'perm-result warn'; btn.disabled = false; return; }
+
+      try {
+        const opts = {
+          method: test.method,
+          headers: { 'Authorization': `Bearer ${token}` },
+        };
+        if (test.body) {
+          opts.headers['Content-Type'] = 'application/json';
+          opts.body = JSON.stringify(test.body);
+        }
+
+        const resp = await fetch(`${API_URL}${test.path}`, opts);
+        const data = await resp.json();
+
+        if (resp.status === 403) {
+          result.textContent = '403 Forbidden';
+          result.className = 'perm-result fail';
+        } else if (resp.status === 401) {
+          result.textContent = '401 Unauthorized';
+          result.className = 'perm-result fail';
+        } else if (resp.ok) {
+          // Summarize response per scope
+          if (scope === 'balance' && data.mon) {
+            result.textContent = `${parseFloat(data.mon.balance).toFixed(4)} MON`;
+          } else if (scope === 'profile') {
+            result.textContent = data.name || 'OK';
+          } else if (scope === 'sign' && data.signature) {
+            result.textContent = data.signature.slice(0, 14) + '...';
+          } else {
+            result.textContent = 'OK';
+          }
+          result.className = 'perm-result ok';
+        } else {
+          // Non-403 error (e.g., 400 validation error for swap/send with empty body)
+          // This still proves the scope check passed — the request got through
+          result.textContent = `${resp.status} (scope OK)`;
+          result.className = 'perm-result ok';
+        }
+      } catch (err) {
+        result.textContent = 'Network error';
+        result.className = 'perm-result fail';
+      }
+      btn.disabled = false;
+    }
+
+    async function testAllScopes() {
+      const testable = ['balance', 'profile', 'swap', 'send', 'sign'];
+      await Promise.all(testable.map(s => testScope(s)));
+    }
+
+    // ========== Limit Busting Tests ==========
+    async function testLimit(scope) {
+      const token = sessionStorage.getItem('pg_login_token');
+      if (!token) return;
+
+      const btn = document.getElementById(`perm-limit-${scope}`);
+      const result = document.getElementById(`perm-limit-result-${scope}`);
+      btn.disabled = true;
+      result.textContent = '...';
+      result.className = 'perm-limit-result';
+
+      // Attempt to exceed the trading limit with a massive amount
+      const LIMIT_TESTS = {
+        swap: { method: 'POST', path: '/oauth/proxy/swap', body: {
+          sellToken: 'MON', buyToken: 'USDC', sellAmount: '100000'
+        }},
+        send: { method: 'POST', path: '/oauth/proxy/send', body: {
+          to: '0x0000000000000000000000000000000000000001', amount: '100000', token: 'MON'
+        }},
+      };
+
+      const test = LIMIT_TESTS[scope];
+      if (!test) { btn.disabled = false; return; }
+
+      try {
+        const resp = await fetch(`${API_URL}${test.path}`, {
+          method: test.method,
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(test.body),
+        });
+        const data = await resp.json();
+
+        if (resp.status === 403 && data.limitViolation) {
+          // Limit enforced — this is the correct behavior
+          const v = data.limitViolation;
+          result.textContent = `Blocked: ${v.limit} (max ${v.maxPerTradeMON || v.dailyCapMON} MON)`;
+          result.className = 'perm-limit-result blocked';
+        } else if (resp.status === 403) {
+          // Scope denied — also fine
+          result.textContent = 'Blocked: scope denied';
+          result.className = 'perm-limit-result blocked';
+        } else if (resp.ok) {
+          // This should NOT happen — the trade went through
+          result.textContent = 'LEAKED: trade executed!';
+          result.className = 'perm-limit-result leaked';
+        } else {
+          // Other error (400 validation, 500, etc.)
+          result.textContent = `${resp.status}: ${data.error || 'blocked'}`;
+          result.className = 'perm-limit-result blocked';
+        }
+      } catch (err) {
+        result.textContent = 'Network error';
+        result.className = 'perm-limit-result leaked';
+      }
+      btn.disabled = false;
+    }
+
+    // ========== Copyable Agent Prompts ==========
+    const SCOPE_PROMPTS = {
+      balance: 'Check my balance with {app}',
+      swap:    'Make a swap with {app}',
+      send:    'Send a cent with {app}',
+      sign:    'Sign a message with {app}',
+      messages:'Read my messages with {app}',
+      profile: 'Check my profile with {app}',
+    };
+
+    function getAppName() {
+      return cachedDapp?.name || 'Test App';
+    }
+
+    function updatePromptAppNames() {
+      const name = getAppName();
+      document.querySelectorAll('.perm-prompt-app').forEach(el => el.textContent = name);
+    }
+
+    function copyPrompt(scope) {
+      const text = SCOPE_PROMPTS[scope]?.replace('{app}', getAppName()) || '';
+      navigator.clipboard.writeText(text).then(() => showToast('Copied'));
     }
 
     // ========== Scope Chips (read-only, from dApp registration) ==========
@@ -1118,9 +1574,9 @@ All dApp transactions count against your same daily trading cap — no dApp can 
         container.innerHTML = '<div class="pg-hint" style="margin:0;">Save your Client ID to load registered scopes</div>';
         return;
       }
-      container.innerHTML = selectedScopes.map(s => `
-        <span class="pg-scope-chip selected" style="cursor:default;">${s}</span>
-      `).join('');
+      container.innerHTML = selectedScopes.map(s =>
+        `<span class="pg-scope-chip selected" style="cursor:default;">${s}</span>`
+      ).join('');
     }
 
     // ========== PKCE ==========

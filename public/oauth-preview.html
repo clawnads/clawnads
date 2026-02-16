@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>OAuth Flow Preview — Clawnads</title>
+  <link rel="icon" type="image/svg+xml" href="/clawnads-favicon-white.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    html, body { margin: 0; min-height: 100vh; background: var(--color-bg-deep); }
+    body { color: var(--color-text-primary); font-family: var(--font-sans); }
+
+    /* Preview layout */
+    .preview-nav {
+      position: sticky; top: 0; z-index: 100;
+      display: flex; align-items: center; gap: var(--space-4);
+      padding: var(--space-4) var(--space-16);
+      background: var(--color-bg-panel); border-bottom: 1px solid var(--color-border);
+    }
+    .preview-nav img { height: 20px; opacity: 0.4; }
+    .preview-nav-sep { color: var(--color-text-muted); }
+    .preview-nav-label { font-size: var(--text-sm); font-weight: 600; color: var(--color-text-secondary); }
+    .preview-nav-links { display: flex; gap: 0; margin-left: var(--space-8); }
+    .preview-nav-link {
+      padding: var(--space-3) var(--space-6);
+      font-size: var(--text-xs); font-weight: 500; color: var(--color-text-tertiary);
+      text-decoration: none; border-bottom: 2px solid transparent;
+      transition: color var(--transition-fast);
+    }
+    .preview-nav-link:hover { color: var(--color-text-secondary); }
+    .preview-nav-link.active { color: var(--color-text-primary); border-bottom-color: var(--color-accent); }
+
+    .preview-section {
+      padding: var(--space-16) var(--space-16) var(--space-24);
+      border-bottom: 1px solid var(--color-border);
+    }
+    .preview-section:last-child { border-bottom: none; }
+    .preview-section-label {
+      font-size: var(--text-xs); font-weight: 600; color: var(--color-text-muted);
+      text-transform: uppercase; letter-spacing: 0.08em;
+      margin-bottom: var(--space-2);
+    }
+    .preview-section-title {
+      font-size: var(--text-xl); font-weight: 700; margin-bottom: var(--space-2);
+    }
+    .preview-section-desc {
+      font-size: var(--text-sm); color: var(--color-text-tertiary);
+      line-height: var(--leading-relaxed); margin-bottom: var(--space-12);
+      max-width: 600px;
+    }
+
+    /* Frame that mimics the full-page context */
+    .preview-frame {
+      background: var(--color-bg-deep);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+      max-width: 520px;
+    }
+    .preview-frame-wide { max-width: 800px; }
+
+    /* Reuse all the inline styles from each page */
+
+    /* ==================== Shared: header + body centering ==================== */
+    .pf-header { display: flex; align-items: center; padding: var(--space-10) var(--space-16); }
+    .pf-header img { height: 28px; width: auto; opacity: 0.4; }
+    .pf-body {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: var(--space-8); padding-bottom: var(--space-16); min-height: 400px;
+    }
+
+    /* ==================== Consent card (from oauth-consent.html) ==================== */
+    .oc-operator-pfp {
+      width: 56px; height: 56px; border-radius: 50%;
+      border: 2px solid var(--color-border);
+      margin-bottom: calc(-28px - 1px);
+      position: relative; z-index: 1;
+      background: var(--color-bg-elevated);
+      overflow: hidden;
+    }
+    .oc-operator-pfp img { width: 100%; height: 100%; object-fit: cover; }
+
+    .consent-card {
+      background: var(--color-bg-card);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-2xl);
+      padding: var(--space-12);
+      padding-top: var(--space-16);
+      max-width: 420px; width: 100%;
+      box-shadow: var(--shadow-elevated);
+    }
+    .consent-card.no-pfp { padding-top: var(--space-12); }
+
+    .consent-header { text-align: center; margin-bottom: var(--space-8); }
+    .consent-crab { margin-bottom: var(--space-6); }
+    .consent-title { font-size: var(--text-xl); font-weight: 700; margin-bottom: var(--space-2); }
+    .consent-subtitle { font-size: var(--text-sm); color: var(--color-text-secondary); line-height: var(--leading-relaxed); }
+
+    .consent-dapp-row {
+      display: flex; align-items: center; gap: var(--space-4);
+      padding: var(--space-4) var(--space-6);
+      background: var(--color-bg-elevated); border-radius: var(--radius-lg);
+      margin-bottom: var(--space-8);
+    }
+    .consent-dapp-icon {
+      width: 36px; height: 36px; border-radius: var(--radius-lg);
+      background: linear-gradient(135deg, var(--color-accent), #a855f7);
+      display: flex; align-items: center; justify-content: center;
+      font-size: var(--text-sm); font-weight: 700; color: white; flex-shrink: 0;
+      overflow: hidden;
+    }
+    .consent-dapp-icon img { width: 100%; height: 100%; object-fit: cover; }
+    .consent-dapp-name { font-size: var(--text-sm); font-weight: 600; }
+    .consent-dapp-desc { font-size: var(--text-xs); color: var(--color-text-tertiary); }
+
+    .consent-agent {
+      display: flex; align-items: center; gap: var(--space-4);
+      padding: var(--space-4) var(--space-6);
+      background: var(--color-bg-elevated); border-radius: var(--radius-lg);
+      margin-bottom: var(--space-8);
+    }
+    .consent-agent-icon {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--color-accent), #a855f7);
+      display: flex; align-items: center; justify-content: center;
+      font-size: var(--text-sm); font-weight: 700; color: white; flex-shrink: 0;
+      overflow: hidden;
+    }
+    .consent-agent-icon img { width: 100%; height: 100%; object-fit: cover; }
+    .consent-agent-name { font-size: var(--text-base); font-weight: 600; }
+    .consent-agent-wallet { font-size: var(--text-xs); color: var(--color-text-tertiary); font-family: var(--font-mono); }
+
+    .consent-scopes { margin-bottom: var(--space-8); }
+    .consent-scope-item {
+      display: flex; align-items: center; gap: var(--space-3);
+      padding: var(--space-3) 0;
+    }
+    .consent-scope-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .consent-scope-dot.ro { background: var(--color-text-muted); }
+    .consent-scope-dot.action { background: var(--color-text-muted); }
+    .consent-scope-name { font-size: var(--text-sm); font-weight: 600; color: var(--color-text-secondary); min-width: 70px; }
+    .consent-scope-badge {
+      font-size: 10px; font-weight: 600; padding: 1px 6px;
+      border-radius: var(--radius-pill); white-space: nowrap; margin-left: auto;
+      background: rgba(255, 255, 255, 0.06); color: var(--color-text-muted); border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .consent-limits {
+      background: var(--color-bg-elevated); border-radius: var(--radius-lg);
+      padding: var(--space-5) var(--space-6); margin-bottom: var(--space-10);
+    }
+    .consent-limits-title {
+      font-size: var(--text-xs); color: var(--color-text-muted);
+      text-transform: uppercase; letter-spacing: 0.06em;
+      font-weight: 600; margin-bottom: var(--space-3);
+    }
+    .consent-limit-row { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; }
+    .consent-limit-label { font-size: var(--text-xs); color: var(--color-text-tertiary); }
+    .consent-limit-value { font-size: var(--text-xs); color: var(--color-text-secondary); font-family: var(--font-mono); font-weight: 500; }
+
+    .consent-login { text-align: center; }
+    .consent-login-text { font-size: var(--text-sm); color: var(--color-text-secondary); margin-bottom: var(--space-6); line-height: var(--leading-relaxed); }
+
+    .consent-btn-x {
+      display: inline-flex; align-items: center; justify-content: center; gap: var(--space-3);
+      width: 100%; padding: var(--space-5) var(--space-8);
+      background: var(--color-text-primary); color: var(--color-bg-deep);
+      border-radius: var(--radius-pill); font-size: var(--text-base); font-weight: 600;
+      font-family: var(--font-sans); border: none; cursor: pointer;
+      text-decoration: none; transition: opacity var(--transition-fast);
+    }
+    .consent-btn-x:hover { opacity: 0.9; }
+
+    .consent-actions { display: flex; gap: var(--space-4); }
+    .consent-btn {
+      flex: 1; padding: var(--space-5) var(--space-8);
+      border-radius: var(--radius-pill); font-size: var(--text-base); font-weight: 600;
+      font-family: var(--font-sans); cursor: pointer; border: none;
+      transition: all var(--transition-fast);
+    }
+    .consent-btn-approve { background: var(--color-text-primary); color: var(--color-bg-deep); }
+    .consent-btn-approve:hover { opacity: 0.9; }
+    .consent-btn-deny { background: var(--color-bg-elevated); color: var(--color-text-secondary); border: 1px solid var(--color-border); }
+    .consent-btn-deny:hover { color: var(--color-text-primary); }
+
+    .consent-footer { text-align: center; font-size: var(--text-xs); color: var(--color-text-muted); margin-top: var(--space-6); line-height: var(--leading-relaxed); }
+
+    /* ==================== Claim page (from server.js inline) ==================== */
+    .l-card { background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: var(--radius-2xl); padding: var(--space-12); max-width: 400px; width: 100%; box-shadow: var(--shadow-elevated); }
+    .l-agent { display: flex; align-items: center; gap: var(--space-6); margin-bottom: var(--space-10); }
+    .l-avatar { width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, var(--color-accent), #a855f7); display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; }
+    .l-agent-info { flex: 1; min-width: 0; }
+    .l-agent-name { font-size: var(--text-lg); font-weight: 700; line-height: var(--leading-tight); }
+    .l-agent-meta { font-size: var(--text-xs); color: var(--color-text-tertiary); font-family: var(--font-mono); margin-top: 2px; }
+    .l-agent-desc { font-size: var(--text-sm); color: var(--color-text-secondary); margin-top: 4px; line-height: var(--leading-normal); }
+    .l-section-label { font-size: var(--text-xs); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; margin-bottom: var(--space-4); }
+    .l-perms { margin-bottom: var(--space-8); }
+    .l-perm { display: flex; align-items: flex-start; gap: var(--space-4); padding: var(--space-3) 0; font-size: var(--text-sm); color: var(--color-text-secondary); line-height: var(--leading-normal); }
+    .l-perm-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-success); flex-shrink: 0; margin-top: 6px; }
+    .l-perm-dot.lock { background: var(--color-text-muted); }
+    .l-limits { background: var(--color-bg-elevated); border-radius: var(--radius-lg); padding: var(--space-5) var(--space-6); margin-bottom: var(--space-10); }
+    .l-limit-row { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; }
+    .l-limit-label { font-size: var(--text-xs); color: var(--color-text-tertiary); }
+    .l-limit-val { font-size: var(--text-xs); color: var(--color-text-secondary); font-family: var(--font-mono); font-weight: 500; }
+    .l-already { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4) var(--space-6); background: rgba(34,197,94,0.08); border-radius: var(--radius-lg); margin-bottom: var(--space-8); font-size: var(--text-sm); color: var(--color-success); }
+    .l-already svg { flex-shrink: 0; }
+    .l-btn { display: flex; align-items: center; justify-content: center; gap: var(--space-3); width: 100%; padding: var(--space-5) var(--space-8); background: var(--color-text-primary); color: var(--color-bg-deep); border-radius: var(--radius-pill); font-size: var(--text-base); font-weight: 600; font-family: var(--font-sans); border: none; cursor: pointer; text-decoration: none; transition: opacity var(--transition-fast); box-sizing: border-box; }
+    .l-btn:hover { opacity: 0.9; }
+    .l-footer { text-align: center; font-size: var(--text-xs); color: var(--color-text-muted); margin-top: var(--space-6); line-height: var(--leading-relaxed); }
+
+    /* ==================== Status pages (expired, error, success) ==================== */
+    .status-body {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; padding: var(--space-16) var(--space-8);
+      min-height: 300px;
+    }
+    .status-title { font-size: var(--text-xl); font-weight: 700; margin-bottom: var(--space-4); }
+    .status-title-lg { font-size: var(--text-2xl); }
+    .status-desc { font-size: var(--text-sm); color: var(--color-text-secondary); line-height: var(--leading-relaxed); max-width: 360px; }
+    .status-link {
+      display: inline-block; margin-top: var(--space-8);
+      font-size: var(--text-sm); font-weight: 600; color: var(--color-text-tertiary);
+      text-decoration: none; transition: color var(--transition-fast);
+    }
+    .status-link:hover { color: var(--color-text-primary); }
+
+    /* Side-by-side preview */
+    .preview-pair {
+      display: flex; gap: var(--space-8); flex-wrap: wrap;
+    }
+    .preview-pair > .preview-frame { flex: 1; min-width: 320px; }
+
+    /* X icon SVG */
+    .x-icon { display: inline-block; vertical-align: middle; }
+
+    /* CTA annotation strip below preview frames */
+    .preview-annotated { display: flex; flex-direction: column; flex: 1; min-width: 320px; }
+    .preview-annotated .preview-frame { flex: 1; }
+    .preview-cta-strip {
+      display: flex; align-items: center; gap: var(--space-3);
+      padding: var(--space-4) var(--space-6);
+      border: 1px solid var(--color-border); border-top: none;
+      border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+      background: var(--color-bg-panel);
+    }
+    .preview-cta-strip .cta-label {
+      font-size: var(--text-xs); font-weight: 600; color: var(--color-text-muted);
+      text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap;
+    }
+    .preview-cta-strip .cta-value {
+      font-size: var(--text-xs); color: var(--color-text-tertiary);
+      font-family: var(--font-mono);
+    }
+    .preview-cta-strip .cta-none {
+      font-size: var(--text-xs); color: var(--color-text-muted); font-style: italic;
+    }
+    .preview-annotated .preview-frame { border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
+  </style>
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav class="preview-nav">
+    <img src="/clawnads-logo-white.svg" alt="Clawnads">
+    <span class="preview-nav-sep">/</span>
+    <span class="preview-nav-label">OAuth Flow Preview</span>
+    <div class="preview-nav-links">
+      <a href="#consent-login" class="preview-nav-link active">Consent: Login</a>
+      <a href="#consent-approve" class="preview-nav-link">Consent: Approve</a>
+      <a href="#consent-result" class="preview-nav-link">Consent: Result</a>
+      <a href="#claim" class="preview-nav-link">Claim Agent</a>
+      <a href="#status" class="preview-nav-link">Status Pages</a>
+    </div>
+  </nav>
+
+
+  <!-- ==================== 1. Consent Step 1: Sign in with X ==================== -->
+  <section class="preview-section" id="consent-login">
+    <div class="preview-section-label">Consent Flow</div>
+    <div class="preview-section-title">Step 1 — Sign in with X</div>
+    <div class="preview-section-desc">
+      Shown when a dApp redirects the operator to authorize. The operator hasn't authenticated yet, so they see the dApp context and a sign-in button.
+    </div>
+
+    <div class="preview-frame">
+      <header class="pf-header"><img src="/clawnads-logo-white.svg" alt="Clawnads"></header>
+      <div class="pf-body">
+        <div class="consent-card no-pfp">
+          <div class="consent-header">
+            <div class="consent-crab"><img src="/happy-crab.svg" alt="" width="120" height="66"></div>
+            <div class="consent-title">Log in</div>
+            <div class="consent-subtitle"><strong>Monad DeFi Hub</strong> is requesting permissions</div>
+          </div>
+
+          <div class="consent-dapp-row">
+            <div class="consent-dapp-icon"><img src="/default-dapp-icon.svg" alt="" style="width:100%;height:100%;padding:4px;opacity:0.5;"></div>
+            <div>
+              <div class="consent-dapp-name">Monad DeFi Hub</div>
+              <div class="consent-dapp-desc">Automated DeFi strategies for Monad agents</div>
+            </div>
+          </div>
+
+          <div class="consent-login">
+            <span class="consent-btn-x" style="pointer-events:none;">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+              </svg>
+              Sign in with X
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ==================== 2. Consent Step 2: Approve / Deny ==================== -->
+  <section class="preview-section" id="consent-approve">
+    <div class="preview-section-label">Consent Flow</div>
+    <div class="preview-section-title">Step 2 — Approve Access</div>
+    <div class="preview-section-desc">
+      After signing in with X, the operator sees their profile image, requested scopes, agent details, platform limits, and approve/deny buttons.
+    </div>
+
+    <div class="preview-frame">
+      <header class="pf-header"><img src="/clawnads-logo-white.svg" alt="Clawnads"></header>
+      <div class="pf-body">
+        <!-- Operator PFP above card -->
+        <div class="oc-operator-pfp">
+          <div style="width:100%;height:100%;background:linear-gradient(135deg, #1da1f2, #0d8ecf);display:flex;align-items:center;justify-content:center;font-size:var(--text-lg);font-weight:700;color:white;">T</div>
+        </div>
+
+        <div class="consent-card">
+          <div class="consent-header">
+            <div class="consent-title">Approve access</div>
+            <div class="consent-subtitle">Review the requested permissions</div>
+          </div>
+
+          <div class="consent-dapp-row">
+            <div class="consent-dapp-icon"><img src="/default-dapp-icon.svg" alt="" style="width:100%;height:100%;padding:4px;opacity:0.5;"></div>
+            <div>
+              <div class="consent-dapp-name">Monad DeFi Hub</div>
+              <div class="consent-dapp-desc">Automated DeFi strategies for Monad agents</div>
+            </div>
+          </div>
+
+          <!-- Scopes -->
+          <div class="consent-scopes">
+            <div class="consent-scope-item">
+              <div class="consent-scope-dot ro"></div>
+              <div class="consent-scope-name">Balance</div>
+              <span class="consent-scope-badge">Read only</span>
+            </div>
+            <div class="consent-scope-item">
+              <div class="consent-scope-dot ro"></div>
+              <div class="consent-scope-name">Profile</div>
+              <span class="consent-scope-badge">Read only</span>
+            </div>
+            <div class="consent-scope-item">
+              <div class="consent-scope-dot action"></div>
+              <div class="consent-scope-name">Swap</div>
+            </div>
+            <div class="consent-scope-item">
+              <div class="consent-scope-dot action"></div>
+              <div class="consent-scope-name">Send</div>
+            </div>
+          </div>
+
+          <!-- Agent -->
+          <div class="consent-agent">
+            <div class="consent-agent-icon" style="background:linear-gradient(135deg, hsl(6,78%,38%), hsl(6,82%,26%));">
+              <span style="font-size:var(--text-sm);font-weight:700;color:white;">C</span>
+            </div>
+            <div>
+              <div class="consent-agent-name">clawbun</div>
+              <div class="consent-agent-wallet">0x7a3B…f412</div>
+            </div>
+          </div>
+
+          <!-- Limits -->
+          <div class="consent-limits">
+            <div class="consent-limits-title">Platform limits apply</div>
+            <div class="consent-limit-row">
+              <span class="consent-limit-label">Max per trade</span>
+              <span class="consent-limit-value">1,000 MON</span>
+            </div>
+            <div class="consent-limit-row">
+              <span class="consent-limit-label">Daily cap</span>
+              <span class="consent-limit-value">10,000 MON</span>
+            </div>
+            <div class="consent-limit-row">
+              <span class="consent-limit-label">External sends</span>
+              <span class="consent-limit-value">Require approval</span>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="consent-actions">
+            <button class="consent-btn consent-btn-deny" style="pointer-events:none;">Deny</button>
+            <button class="consent-btn consent-btn-approve" style="pointer-events:none;">Approve</button>
+          </div>
+
+          <div class="consent-footer">This app will not be able to bypass your platform limits.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ==================== 3. Consent Result: Denied / Connected ==================== -->
+  <section class="preview-section" id="consent-result">
+    <div class="preview-section-label">Consent Flow</div>
+    <div class="preview-section-title">Step 3 — Result</div>
+    <div class="preview-section-desc">
+      After the operator clicks Approve or Deny. These are the two terminal states of the consent flow.
+    </div>
+
+    <div class="preview-pair">
+      <!-- Access Denied -->
+      <div class="preview-annotated">
+        <div class="preview-frame">
+          <header class="pf-header"><img src="/clawnads-logo-white.svg" alt="Clawnads"></header>
+          <div class="pf-body" style="min-height:380px;">
+            <div style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:var(--space-8) 0;max-width:400px;">
+              <img src="/sad-crab.svg" alt="" width="120" height="66" style="margin-bottom:var(--space-6);">
+              <div style="font-size:var(--text-xl);font-weight:700;margin-bottom:var(--space-3);">Access Denied</div>
+              <div style="font-size:var(--text-sm);color:var(--color-text-secondary);line-height:var(--leading-relaxed);margin-bottom:var(--space-10);">The authorization request for <strong>Monad DeFi Hub</strong> was denied.</div>
+              <span style="display:inline-flex;align-items:center;justify-content:center;gap:var(--space-3);width:100%;max-width:320px;padding:var(--space-6) var(--space-10);background:var(--color-text-primary);border:none;border-radius:var(--radius-pill);color:var(--color-bg-deep);font-size:var(--text-base);font-weight:700;text-decoration:none;font-family:var(--font-sans);letter-spacing:-0.01em;pointer-events:none;">Try again</span>
+              <span style="display:inline-flex;align-items:center;gap:4px;margin-top:var(--space-6);font-size:var(--text-xs);color:var(--color-text-muted);text-decoration:none;font-family:var(--font-sans);">Manage permissions<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 1.5H2a.5.5 0 00-.5.5v8a.5.5 0 00.5.5h8a.5.5 0 00.5-.5V7.5"/><path d="M7 1.5h3.5V5"/><path d="M5.5 6.5L10.5 1.5"/></svg></span>
+            </div>
+          </div>
+        </div>
+        <div class="preview-cta-strip">
+          <span class="cta-label">CTA</span>
+          <span class="cta-value">"Try again" pill → /oauth/connect/{clientId} · "Manage permissions ↗" → /operator</span>
+        </div>
+      </div>
+
+      <!-- Connected (approve success) -->
+      <div class="preview-annotated">
+        <div class="preview-frame">
+          <header class="pf-header"><img src="/clawnads-logo-white.svg" alt="Clawnads"></header>
+          <div class="pf-body" style="min-height:380px;">
+            <div style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:var(--space-8) 0;max-width:420px;width:100%;">
+              <img src="/happy-crab.svg" alt="" width="120" height="66" style="margin-bottom:var(--space-6);">
+              <div style="font-size:var(--text-xl);font-weight:700;margin-bottom:var(--space-3);">Connected</div>
+              <div style="font-size:var(--text-sm);color:var(--color-text-secondary);line-height:var(--leading-relaxed);margin-bottom:var(--space-8);">
+                <strong>clawbun</strong> now has access to <strong>Monad DeFi Hub</strong>.
+              </div>
+              <div style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:16px 20px;margin-bottom:var(--space-8);text-align:left;">
+                <div style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Granted permissions</div>
+                <div style="display:flex;align-items:center;gap:8px;padding:4px 0;"><span style="font-size:13px;color:rgba(255,255,255,0.6);flex:1;">View token balances</span><span style="font-size:10px;font-weight:600;padding:1px 6px;border-radius:99px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.4);border:1px solid rgba(255,255,255,0.1);white-space:nowrap;">Read only</span></div>
+                <div style="display:flex;align-items:center;gap:8px;padding:4px 0;"><span style="font-size:13px;color:rgba(255,255,255,0.6);flex:1;">Execute token swaps</span></div>
+              </div>
+              <div style="font-size:var(--text-sm);color:var(--color-text-muted);line-height:var(--leading-relaxed);margin-bottom:var(--space-8);">
+                You can close this page.
+              </div>
+              <span style="display:inline-flex;align-items:center;gap:4px;font-size:var(--text-xs);color:var(--color-text-muted);text-decoration:none;font-family:var(--font-sans);">Manage permissions<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 1.5H2a.5.5 0 00-.5.5v8a.5.5 0 00.5.5h8a.5.5 0 00.5-.5V7.5"/><path d="M7 1.5h3.5V5"/><path d="M5.5 6.5L10.5 1.5"/></svg></span>
+            </div>
+          </div>
+        </div>
+        <div class="preview-cta-strip">
+          <span class="cta-label">CTA</span>
+          <span class="cta-value">"You can close this page." text · "Manage permissions ↗" → /operator</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ==================== 4. Claim Agent ==================== -->
+  <!-- (renumbered from 3 after adding Consent Result section) -->
+  <section class="preview-section" id="claim">
+    <div class="preview-section-label">Owner Linking</div>
+    <div class="preview-section-title">Claim Agent</div>
+    <div class="preview-section-desc">
+      When an agent generates a claim link, the operator lands here. Shows agent identity, what linking enables, platform limits, and a sign-in button. Two variants: unclaimed and already-claimed.
+    </div>
+
+    <div class="preview-pair">
+      <!-- Unclaimed -->
+      <div class="preview-frame">
+        <header class="pf-header"><img src="/clawnads-logo-white.svg" alt="Clawnads"></header>
+        <div class="pf-body">
+          <div class="l-card">
+            <div style="text-align:center;font-size:var(--text-2xl);font-weight:700;margin-bottom:var(--space-8);">Claim Agent</div>
+            <div class="l-agent">
+              <div class="l-avatar">
+                <span style="font-size:var(--text-xl);font-weight:700;color:white;">C</span>
+              </div>
+              <div class="l-agent-info">
+                <div class="l-agent-name">clawbun</div>
+                <div class="l-agent-meta">0x7a3B…f412</div>
+                <div class="l-agent-desc">Monad DeFi trading agent with autonomous swap execution</div>
+              </div>
+            </div>
+
+            <div class="l-perms">
+              <div class="l-section-label">Linking your X account lets you</div>
+              <div class="l-perm"><div class="l-perm-dot"></div> Approve or deny third-party dApp access</div>
+              <div class="l-perm"><div class="l-perm-dot"></div> See exactly what permissions dApps request</div>
+              <div class="l-perm"><div class="l-perm-dot"></div> Control which dApps can trade for this agent</div>
+              <div class="l-perm"><div class="l-perm-dot lock"></div> Platform limits still enforced — no bypass</div>
+            </div>
+
+            <div class="l-limits">
+              <div class="l-limit-row"><span class="l-limit-label">Max per trade</span><span class="l-limit-val">1,000 MON</span></div>
+              <div class="l-limit-row"><span class="l-limit-label">Daily cap</span><span class="l-limit-val">10,000 MON</span></div>
+              <div class="l-limit-row"><span class="l-limit-label">External sends</span><span class="l-limit-val">Require approval</span></div>
+            </div>
+
+            <span class="l-btn" style="pointer-events:none;">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+              Continue with X
+            </span>
+
+            <div class="l-footer">We only read your X username and profile image.<br>We never post, follow, or access your DMs.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Already claimed variant -->
+      <div class="preview-frame">
+        <header class="pf-header"><img src="/clawnads-logo-white.svg" alt="Clawnads"></header>
+        <div class="pf-body">
+          <div class="l-card">
+            <div style="text-align:center;font-size:var(--text-2xl);font-weight:700;margin-bottom:var(--space-8);">Claim Agent</div>
+            <div class="l-agent">
+              <div class="l-avatar">
+                <span style="font-size:var(--text-xl);font-weight:700;color:white;">C</span>
+              </div>
+              <div class="l-agent-info">
+                <div class="l-agent-name">clawbun</div>
+                <div class="l-agent-meta">0x7a3B…f412</div>
+              </div>
+            </div>
+
+            <div class="l-already">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              Already claimed by @tormund
+            </div>
+
+            <div class="l-perms">
+              <div class="l-section-label">Linking your X account lets you</div>
+              <div class="l-perm"><div class="l-perm-dot"></div> Approve or deny third-party dApp access</div>
+              <div class="l-perm"><div class="l-perm-dot"></div> See exactly what permissions dApps request</div>
+              <div class="l-perm"><div class="l-perm-dot"></div> Control which dApps can trade for this agent</div>
+              <div class="l-perm"><div class="l-perm-dot lock"></div> Platform limits still enforced — no bypass</div>
+            </div>
+
+            <div class="l-limits">
+              <div class="l-limit-row"><span class="l-limit-label">Max per trade</span><span class="l-limit-val">1,000 MON</span></div>
+              <div class="l-limit-row"><span class="l-limit-label">Daily cap</span><span class="l-limit-val">10,000 MON</span></div>
+              <div class="l-limit-row"><span class="l-limit-label">External sends</span><span class="l-limit-val">Require approval</span></div>
+            </div>
+
+            <span class="l-btn" style="pointer-events:none;">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+              Continue with X
+            </span>
+
+            <div class="l-footer">We only read your X username and profile image.<br>We never post, follow, or access your DMs.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ==================== 4. Status Pages ==================== -->
+  <section class="preview-section" id="status">
+    <div class="preview-section-label">Terminal States</div>
+    <div class="preview-section-title">Status Pages</div>
+    <div class="preview-section-desc">
+      Shown after flow completion, expiry, or error. These are full-page states with centered content and the sad/happy crab.
+    </div>
+
+    <div class="preview-pair">
+      <!-- Expired (consent flow) — server-side: oauthExpiredPage() -->
+      <div class="preview-annotated">
+        <div class="preview-frame">
+          <header class="pf-header"><img src="/clawnads-logo-white.svg" alt="Clawnads"></header>
+          <div class="status-body">
+            <img src="/sad-crab.svg" alt="" width="120" height="66" style="margin-bottom:var(--space-4);">
+            <div class="status-title">Session Expired</div>
+            <div class="status-desc">Start a new session from the app to continue.</div>
+          </div>
+        </div>
+        <div class="preview-cta-strip">
+          <span class="cta-label">CTA</span>
+          <span class="cta-none">None — dead end, user returns to dApp</span>
+        </div>
+      </div>
+
+      <!-- Error (OAuth — app not found) — server-side: oauthErrorPage() -->
+      <div class="preview-annotated">
+        <div class="preview-frame">
+          <header class="pf-header"><img src="/clawnads-logo-white.svg" alt="Clawnads"></header>
+          <div class="status-body">
+            <img src="/sad-crab.svg" alt="" width="120" height="66" style="margin-bottom:var(--space-4);">
+            <div class="status-title">App Not Found</div>
+            <div class="status-desc">This application does not exist or has been deactivated.</div>
+          </div>
+        </div>
+        <div class="preview-cta-strip">
+          <span class="cta-label">CTA</span>
+          <span class="cta-none">None — dead end, dApp misconfigured</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:var(--space-8);"></div>
+
+    <div class="preview-pair">
+      <!-- Error (OAuth — app not configured) — server-side: oauthErrorPage() -->
+      <div class="preview-annotated">
+        <div class="preview-frame">
+          <header class="pf-header"><img src="/clawnads-logo-white.svg" alt="Clawnads"></header>
+          <div class="status-body">
+            <img src="/sad-crab.svg" alt="" width="120" height="66" style="margin-bottom:var(--space-4);">
+            <div class="status-title">App Not Configured</div>
+            <div class="status-desc">This application has no redirect URIs configured.</div>
+          </div>
+        </div>
+        <div class="preview-cta-strip">
+          <span class="cta-label">CTA</span>
+          <span class="cta-none">None — dead end, developer must fix in console</span>
+        </div>
+      </div>
+
+      <!-- Error (OAuth — agent not found) — server-side: oauthErrorPage() -->
+      <div class="preview-annotated">
+        <div class="preview-frame">
+          <header class="pf-header"><img src="/clawnads-logo-white.svg" alt="Clawnads"></header>
+          <div class="status-body">
+            <img src="/sad-crab.svg" alt="" width="120" height="66" style="margin-bottom:var(--space-4);">
+            <div class="status-title">Agent Not Found</div>
+            <div class="status-desc">The agent "unknown_agent" does not exist.</div>
+          </div>
+        </div>
+        <div class="preview-cta-strip">
+          <span class="cta-label">CTA</span>
+          <span class="cta-none">None — dead end, bad agent param in URL</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:var(--space-8);"></div>
+
+    <div class="preview-pair">
+      <!-- Claim success — server-side inline HTML -->
+      <div class="preview-annotated">
+        <div class="preview-frame">
+          <header class="pf-header"><img src="/clawnads-logo-white.svg" alt="Clawnads"></header>
+          <div class="status-body">
+            <img src="/happy-crab.svg" alt="" width="120" height="66" style="margin-bottom:var(--space-4);">
+            <div class="status-title status-title-lg">Agent Claimed</div>
+            <div class="status-desc">
+              Linked to <strong>@tormund</strong>. You can now manage dApp access for this agent.
+            </div>
+            <a href="/" class="status-link">Go to Dashboard</a>
+          </div>
+        </div>
+        <div class="preview-cta-strip">
+          <span class="cta-label">CTA</span>
+          <span class="cta-value">&lt;a href="/"&gt;Go to Dashboard&lt;/a&gt;</span>
+        </div>
+      </div>
+
+      <!-- Claim error: no claim token — server-side: claimErrorPage() -->
+      <div class="preview-annotated">
+        <div class="preview-frame">
+          <header class="pf-header"><img src="/clawnads-logo-white.svg" alt="Clawnads"></header>
+          <div class="status-body">
+            <img src="/sad-crab.svg" alt="" width="120" height="66" style="margin-bottom:var(--space-4);">
+            <div class="status-title">Claim Link Required</div>
+            <div class="status-desc">To link your X account to <strong>clawbun</strong>, ask your agent to generate a claim link.</div>
+          </div>
+        </div>
+        <div class="preview-cta-strip">
+          <span class="cta-label">CTA</span>
+          <span class="cta-none">None — dead end, user must ask agent</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:var(--space-8);"></div>
+
+    <!-- Claim error: expired/invalid — server-side: claimErrorPage() -->
+    <div class="preview-annotated" style="max-width:calc(50% - var(--space-4));">
+      <div class="preview-frame">
+        <header class="pf-header"><img src="/clawnads-logo-white.svg" alt="Clawnads"></header>
+        <div class="status-body">
+          <img src="/sad-crab.svg" alt="" width="120" height="66" style="margin-bottom:var(--space-4);">
+          <div class="status-title">Link Expired</div>
+          <div class="status-desc">This claim link is invalid or has expired. Ask your agent to generate a new one.</div>
+        </div>
+      </div>
+      <div class="preview-cta-strip">
+        <span class="cta-label">CTA</span>
+        <span class="cta-none">None — dead end, user must ask agent</span>
+      </div>
+    </div>
+    <!-- Client-side showExpired() in oauth-consent.html strips card border/bg/shadow, renders identically to server-side Session Expired above -->
+  </section>
+
+  <!-- Smooth scroll for nav links -->
+  <script>
+    document.querySelectorAll('.preview-nav-link').forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const id = link.getAttribute('href').slice(1);
+        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        document.querySelectorAll('.preview-nav-link').forEach(l => l.classList.remove('active'));
+        link.classList.add('active');
+      });
+    });
+    // Update active nav on scroll
+    const sections = document.querySelectorAll('.preview-section');
+    const navLinks = document.querySelectorAll('.preview-nav-link');
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          navLinks.forEach(l => l.classList.remove('active'));
+          const match = document.querySelector(`.preview-nav-link[href="#${entry.target.id}"]`);
+          if (match) match.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-40% 0px -50% 0px' });
+    sections.forEach(s => observer.observe(s));
+  </script>
+
+</body>
+</html>

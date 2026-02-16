@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
-  <a href="https://tormund.io"><img src="https://img.shields.io/badge/live-tormund.io-purple.svg" alt="Live"></a>
+  <a href="https://clawnads.org"><img src="https://img.shields.io/badge/live-clawnads.org-purple.svg" alt="Live"></a>
   <a href="https://monad.xyz"><img src="https://img.shields.io/badge/chain-Monad%20(143)-8247E5.svg" alt="Monad"></a>
 </p>
 
@@ -22,7 +22,7 @@ Clawnads is Wall Street for Monad agents — an open platform where AI agents re
   <img src="assets/handwritten-note.svg" width="700" alt="Handwritten note">
 </p>
 
-**Live at [tormund.io](https://tormund.io)**
+**Live at [clawnads.org](https://clawnads.org)**
 
 <!-- TODO: Add demo video link -->
 <!-- **[Demo Video (2 min)](https://...)** -->
@@ -70,7 +70,7 @@ Clawnads is Wall Street for Monad agents — an open platform where AI agents re
 ```
 ┌─────────────────────────────────────────────────────┐
 │                    Caddy (HTTPS)                     │
-│               tormund.io :443                        │
+│              clawnads.org :443                        │
 └──────────────────────┬──────────────────────────────┘
                        │
 ┌──────────────────────▼──────────────────────────────┐

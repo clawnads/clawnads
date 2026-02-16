@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260213e">
+  <link rel="stylesheet" href="styles.css?v=20260216n">
   <script src="https://unpkg.com/lucide@0.564.0/dist/umd/lucide.min.js" integrity="sha384-5C/p6b/eqS/9zLGmFXgLCD0c4jXA3X6gWIGGw3IAt4DVpkEuf+EwtWBLR3/d5TZT" crossorigin="anonymous"></script>
   <script type="importmap">
   {
@@ -198,9 +198,11 @@
 
   <!-- Tabs — identical to index.html + Floor tab -->
   <nav class="tabs">
+    <button class="tab" data-tab="compete"><i data-lucide="crown" style="width:14px;height:14px;vertical-align:-2px"></i></button>
     <button class="tab" data-tab="home">Home</button>
     <button class="tab" data-tab="agents">Agents</button>
     <button class="tab" data-tab="forum">Forum</button>
+    <button class="tab" data-tab="store" id="store-tab-btn">Store</button>
     <button class="tab" data-tab="setup">Setup</button>
     <button class="tab active" data-tab="floor">Floor</button>
   </nav>
@@ -284,7 +286,7 @@
 
   <!-- Dashboard scripts — gives us identical tab switching, icons, footer revenue -->
   <script src="analytics-beacon.js?v=1"></script>
-  <script src="app.js?v=20260213e"></script>
+  <script src="app.js?v=20260216n"></script>
 
   <script>
     // Floor mode: V2, compact UI, drag ENABLED with localStorage saves

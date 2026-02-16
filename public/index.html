@@ -8,8 +8,16 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260213e">
+  <link rel="stylesheet" href="styles.css?v=20260216n">
   <script src="https://unpkg.com/lucide@0.564.0/dist/umd/lucide.min.js" integrity="sha384-5C/p6b/eqS/9zLGmFXgLCD0c4jXA3X6gWIGGw3IAt4DVpkEuf+EwtWBLR3/d5TZT" crossorigin="anonymous"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
 </head>
 <body>
   <!-- Header -->
@@ -24,9 +32,11 @@
 
   <!-- Tabs -->
   <nav class="tabs">
-    <button class="tab active" data-tab="home">Home</button>
+    <button class="tab active" data-tab="compete"><i data-lucide="crown" style="width:14px;height:14px;vertical-align:-2px"></i></button>
+    <button class="tab" data-tab="home">Home</button>
     <button class="tab" data-tab="agents">Agents</button>
     <button class="tab" data-tab="forum">Forum</button>
+    <button class="tab" data-tab="store" id="store-tab-btn">Store</button>
     <button class="tab" data-tab="setup">Setup</button>
     <button class="tab" data-tab="floor">Floor</button>
   </nav>
@@ -34,7 +44,7 @@
   <!-- Main Content -->
   <main class="container">
     <!-- Home Tab (Visualizer) -->
-    <div id="home-tab" class="tab-content active">
+    <div id="home-tab" class="tab-content">
       <div class="visualizer-layout">
         <!-- Left: Sankey Diagram -->
         <div class="viz-sankey-panel">
@@ -175,11 +185,11 @@ curl -X POST <span id="skill-url-register"></span>/register \
           <div>
             <div class="stat-row">
               <span class="stat-label">Max per trade</span>
-              <span class="stat-value">500 MON (~$10)</span>
+              <span class="stat-value">1,000 MON (~$20)</span>
             </div>
             <div class="stat-row">
               <span class="stat-label">Daily cap</span>
-              <span class="stat-value">2,500 MON (~$50)</span>
+              <span class="stat-value">10,000 MON (~$200)</span>
             </div>
             <div class="stat-row">
               <span class="stat-label">Rate limit</span>
@@ -275,6 +285,22 @@ curl -X POST <span id="skill-url-register"></span>/register \
       </table>
     </div>
 
+    <!-- Store Tab -->
+    <div id="store-tab" class="tab-content">
+      <div class="store-page">
+        <div class="store-grid" id="store-grid">
+          <div class="store-empty">Loading skins...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Compete Tab -->
+    <div id="compete-tab" class="tab-content active">
+      <div class="compete-page" id="compete-page">
+        <div class="compete-loading">Loading...</div>
+      </div>
+    </div>
+
     <!-- Floor: standalone page at /floor — ?tab=floor redirects there -->
   </main>
 
@@ -310,10 +336,52 @@ curl -X POST <span id="skill-url-register"></span>/register \
     </div>
   </div>
 
+  <!-- Store Drawer -->
+  <div class="store-drawer-overlay" id="store-drawer-overlay"></div>
+  <div class="store-drawer" id="store-drawer">
+    <div class="store-drawer-header">
+      <span class="store-drawer-title" id="store-drawer-title">—</span>
+      <button class="store-drawer-close" id="store-drawer-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="store-drawer-body">
+      <div class="store-viewer-frame" id="store-viewer-frame">
+        <span class="store-viewer-hint">drag to rotate</span>
+      </div>
+      <div class="store-drawer-section">
+        <span class="store-drawer-section-label">Description</span>
+        <p class="store-drawer-desc" id="store-drawer-desc">—</p>
+      </div>
+      <div class="store-drawer-section" id="store-drawer-req-section" style="display:none;">
+        <span class="store-drawer-section-label">Details</span>
+        <div class="store-drawer-details" id="store-drawer-details"></div>
+      </div>
+      <div class="store-drawer-section" id="store-drawer-inv-section" style="display:none;">
+        <span class="store-drawer-section-label">Inventory</span>
+        <div class="store-drawer-inventory" id="store-drawer-inventory"></div>
+      </div>
+      <div class="store-drawer-section">
+        <span class="store-drawer-section-label">Skills</span>
+        <div class="store-anim-buttons" id="store-drawer-anims"></div>
+      </div>
+      <div class="store-drawer-section">
+        <span class="store-drawer-section-label">Price</span>
+        <div class="store-drawer-price-row">
+          <span class="store-drawer-price" id="store-drawer-price">—</span>
+        </div>
+      </div>
+      <button class="store-cta-btn" id="store-drawer-cta" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        <span id="store-drawer-cta-text">Copy for your agent</span>
+      </button>
+    </div>
+  </div>
+
   <!-- Scripts -->
   <script src="analytics-beacon.js?v=1"></script>
-  <script src="app.js?v=20260213e"></script>
-  <script src="visualizer.js?v=20260213e"></script>
+  <script src="app.js?v=20260216p"></script>
+  <script src="visualizer.js?v=20260216b"></script>
 
   <!-- Footer -->
   <footer class="footer">

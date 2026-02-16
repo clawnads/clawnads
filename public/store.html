@@ -68,14 +68,47 @@
       filter: drop-shadow(0 8px 24px rgba(255, 255, 255, 0.1));
     }
 
-    /* Off-sale items — dimmed */
-    .store-card.off-sale {
+    /* Unavailable items (off-sale or sold-out) — dimmed, no pointer */
+    .store-card.off-sale,
+    .store-card.sold-out {
       opacity: 0.45;
       filter: saturate(0.3);
+      cursor: default;
     }
-    .store-card.off-sale:hover {
-      opacity: 0.65;
-      filter: saturate(0.5) drop-shadow(0 8px 24px rgba(255, 255, 255, 0.06));
+    .store-card.off-sale:hover,
+    .store-card.sold-out:hover {
+      transform: none;
+      border-color: transparent;
+      outline-color: transparent;
+      filter: saturate(0.3);
+      opacity: 0.5;
+    }
+
+    /* Diagonal banner for unavailable items */
+    .store-card-banner {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+    .store-card-banner span {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.7);
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      padding: 6px 32px;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
     }
 
     /* Variant-tinted background */
@@ -616,6 +649,8 @@
     <a href="/store" class="admin-nav-link admin-nav-active">Store</a>
     <span class="admin-nav-sep">&middot;</span>
     <a href="/admin/store-manage" class="admin-nav-link">Store Ops</a>
+    <span class="admin-nav-sep">&middot;</span>
+    <a href="/competitions" class="admin-nav-link">Competitions</a>
   </div>
   <div class="anav-profile" id="admin-nav-profile"></div>
 
@@ -754,8 +789,8 @@
 
       // Camera — full body, portrait aspect matching card
       snapCamera = new THREE.PerspectiveCamera(32, SNAP_W / SNAP_H, 0.1, 50);
-      snapCamera.position.set(0.3, 0.45, 1.35);
-      snapCamera.lookAt(0, 0.35, 0);
+      snapCamera.position.set(0.15, 0.2, 2.8);
+      snapCamera.lookAt(0, 0.15, 0);
     }
 
     async function renderSnapshot(variant) {
@@ -876,17 +911,29 @@
           const skillCount = 3;
           const skillLabel = `${skillCount} skill${skillCount !== 1 ? 's' : ''}`;
 
-          // Off-sale dimming
+          // Unavailable states
           const offSale = skin.onSale === false;
+          const isSoldOut = supply !== -1 && (supply - sold) <= 0 && !skin.free;
+          const unavailable = offSale || isSoldOut;
+          const cardClass = isSoldOut ? ' sold-out' : offSale ? ' off-sale' : '';
+
+          // Banner for unavailable items
+          let bannerHtml = '';
+          if (isSoldOut) {
+            bannerHtml = '<div class="store-card-banner"><span>Sold Out</span></div>';
+          } else if (offSale) {
+            bannerHtml = '<div class="store-card-banner"><span>Not Available</span></div>';
+          }
 
           return `
-            <div class="store-card${offSale ? ' off-sale' : ''}" data-id="${id}" data-variant="${variant}">
+            <div class="store-card${cardClass}" data-id="${id}" data-variant="${variant}">
               <div class="store-card-bg ${variantClass}"></div>
               <div class="store-card-img" id="preview-${id}">
                 <span class="store-loading">loading...</span>
               </div>
               <div class="store-card-badges">${badges}</div>
               ${supplyHtml}
+              ${bannerHtml}
               <div class="store-card-overlay">
                 <div class="store-card-type">${esc(skillLabel)}</div>
                 <div class="store-card-name">${esc(skin.name)}</div>
@@ -921,9 +968,10 @@
           snapRenderer = null;
         }
 
-        // Attach card click handlers
+        // Attach card click handlers (skip unavailable items)
         grid.querySelectorAll('.store-card').forEach(card => {
           card.addEventListener('click', () => {
+            if (card.classList.contains('off-sale') || card.classList.contains('sold-out')) return;
             const id = card.dataset.id;
             const skin = skinsData[id];
             if (skin) openDrawer(id, skin);

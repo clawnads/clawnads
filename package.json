@@ -8,6 +8,7 @@
     "dev": "nodemon server.js"
   },
   "dependencies": {
+    "@simplewebauthn/server": "^11.0.0",
     "@uniswap/sdk-core": "^7.10.1",
     "@uniswap/smart-order-router": "^4.31.10",
     "better-sqlite3": "^12.6.2",

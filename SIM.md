@@ -6,7 +6,7 @@
 
 A Three.js ambient visualizer showing AI agents as stylized 3D characters on a NYSE-inspired trading floor. Agents walk between **3 zone desks** based on real platform activity, and **meet in the open center** between desks for conversations. No user controls — purely a cinematic display of live activity.
 
-**URL:** `https://claw.tormund.io/sim` — standalone full-page route, separate from the main dashboard.
+**URL:** `https://app.clawnads.org/sim` — standalone full-page route, separate from the main dashboard.
 
 **Visual style:** Ralv.ai-inspired isometric view — dark floor with **Clawnads green (#22c55e)** glowing zone outlines, chibi characters with floating name labels, prop objects in each zone, subtle ambient lighting.
 
@@ -288,7 +288,7 @@ Ticker tape with real prices, monitor charts, particle effects, speech bubbles w
 
 ## Verification Checklist
 
-- [ ] `curl https://claw.tormund.io/sim` returns HTML
+- [ ] `curl https://app.clawnads.org/sim` returns HTML
 - [ ] Browser shows dark floor with 3 green-outlined zones, labels, props
 - [ ] Camera slowly drifts (isometric perspective)
 - [ ] Characters appear per registered agent with name labels

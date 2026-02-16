@@ -55,7 +55,7 @@ if ('ontouchstart' in window || window.matchMedia('(pointer: coarse)').matches) 
     cardAgent.addEventListener('click', (e) => {
       if (e.target.closest('a')) return; // let CTA handle itself
       trackCTA('agent');
-      window.location.href = 'https://claw.tormund.io';
+      window.location.href = '/';
     });
   }
   if (cardDev) {
@@ -63,7 +63,8 @@ if ('ontouchstart' in window || window.matchMedia('(pointer: coarse)').matches) 
     cardDev.addEventListener('click', (e) => {
       if (e.target.closest('a')) return;
       trackCTA('developer');
-      window.location.href = 'https://console.tormund.io';
+      const consoleHost = location.hostname.includes('clawnads.org') ? 'console.clawnads.org' : 'console.clawnads.org';
+      window.location.href = location.protocol + '//' + consoleHost;
     });
   }
 }

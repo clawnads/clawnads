@@ -1,16 +1,25 @@
 // ==================== Developer Portal — Clawnads (X Console Layout) ====================
 
-const SCOPES = ['balance', 'swap', 'send', 'sign', 'messages', 'profile'];
-const SCOPE_INFO = {
-  balance:  { desc: 'View wallet balance',        access: 'ro' },
-  swap:     { desc: 'Swap tokens within daily cap', access: 'rw' },
-  send:     { desc: 'Send tokens within daily cap', access: 'rw' },
-  sign:     { desc: 'Sign messages',               access: 'rw' },
-  messages: { desc: 'Read and send messages',      access: 'rw' },
-  profile:  { desc: 'View agent profile',          access: 'ro' }
+const SCOPE_ORDER = ['balance', 'profile', 'swap', 'send', 'sign', 'messages'];
+const SCOPE_CONFIG = {
+  balance:  { desc: 'View wallet balance',           type: 'ro' },
+  swap:     { desc: 'Token swaps within daily cap',   type: 'action' },
+  send:     { desc: 'Token sends within daily cap',   type: 'action' },
+  sign:     { desc: 'Message signing',                type: 'action' },
+  messages: { desc: 'Agent messages',                 type: 'rw' },
+  profile:  { desc: 'View agent profile',            type: 'ro' }
 };
-// Compat alias
-const SCOPE_DESCRIPTIONS = Object.fromEntries(Object.entries(SCOPE_INFO).map(([k, v]) => [k, v.desc]));
+const SCOPE_DESCRIPTIONS = {
+  balance: 'View wallet balance',
+  swap: 'Token swaps within daily cap',
+  send: 'Token sends within daily cap',
+  sign: 'Message signing',
+  'messages:read': 'Read agent messages', 'messages:write': 'Send agent messages',
+  messages: 'Read and send messages',
+  profile: 'View agent profile'
+};
+// Legacy compat alias
+const SCOPE_INFO = Object.fromEntries(SCOPE_ORDER.map(k => [k, { desc: SCOPE_CONFIG[k].desc, access: SCOPE_CONFIG[k].type }]));
 
 let currentDapps = [];
 let selectedAppId = null;
@@ -376,7 +385,7 @@ function renderDetailPanel(clientId) {
       <button class="dev-detail-tab ${activeDetailTab === 'credentials' ? 'active' : ''}" data-tab="credentials">Credentials</button>
       <button class="dev-detail-tab ${activeDetailTab === 'settings' ? 'active' : ''}" data-tab="settings">Settings</button>
       <button class="dev-detail-tab ${activeDetailTab === 'usage' ? 'active' : ''}" data-tab="usage">Usage</button>
-      <button class="dev-detail-tab ${activeDetailTab === 'skilldoc' ? 'active' : ''}" data-tab="skilldoc">Skill Doc</button>
+      <button class="dev-detail-tab ${activeDetailTab === 'skilldoc' ? 'active' : ''}" data-tab="skilldoc">OAuth Snippet</button>
       <button class="dev-detail-tab danger ${activeDetailTab === 'danger' ? 'active' : ''}" data-tab="danger">Danger Zone</button>
     </div>
 
@@ -545,19 +554,54 @@ function renderSettingsTab(dapp) {
       </div>
       <div class="dev-field">
         <label class="dev-field-label">Permissions</label>
-        <div id="settings-scopes" style="display:flex;flex-direction:column;gap:var(--space-2);">
-          ${SCOPES.map(s => {
-            const info = SCOPE_INFO[s] || { desc: s, access: 'ro' };
-            const accessLabel = info.access === 'rw' ? 'Read & write' : 'Read only';
+        <div id="settings-scopes" style="display:flex;flex-direction:column;gap:var(--space-1);">
+          ${SCOPE_ORDER.map(s => {
+            const config = SCOPE_CONFIG[s];
+            if (config.type === 'ro') {
+              const checked = dapp.scopes.includes(s);
+              return `
+              <label class="dev-scope-checkbox" style="display:flex;align-items:center;gap:var(--space-3);padding:var(--space-2) 0;">
+                <input type="checkbox" data-scope="${s}" data-type="ro" ${checked ? 'checked' : ''}>
+                <div style="flex:1;min-width:0;">
+                  <span style="font-weight:600;">${s}</span>
+                  <span style="font-size:var(--text-xs);color:var(--color-text-muted);margin-left:var(--space-2);">${escapeHtml(config.desc)}</span>
+                </div>
+                <span class="dev-scope-badge ro">Read only</span>
+              </label>`;
+            }
+            if (config.type === 'action') {
+              return `
+              <label class="dev-scope-checkbox" style="display:flex;align-items:center;gap:var(--space-3);padding:var(--space-2) 0;opacity:0.35;cursor:not-allowed;">
+                <input type="checkbox" data-scope="${s}" data-type="action" disabled>
+                <div style="flex:1;min-width:0;">
+                  <span style="font-weight:600;">${s}</span>
+                  <span style="font-size:var(--text-xs);color:var(--color-text-muted);margin-left:var(--space-2);">${escapeHtml(config.desc)}</span>
+                </div>
+                <span class="dev-scope-badge ro">Coming soon</span>
+              </label>`;
+            }
+            // rw scope (messages): checkbox + segmented control
+            const hasRead = dapp.scopes.includes(s + ':read') || dapp.scopes.includes(s);
+            const hasWrite = dapp.scopes.includes(s + ':write') || dapp.scopes.includes(s);
+            const enabled = hasRead || hasWrite;
+            let accessValue = 'read_write';
+            if (hasRead && !hasWrite) accessValue = 'read';
+            else if (!hasRead && hasWrite) accessValue = 'write';
             return `
-            <label class="dev-scope-checkbox" style="display:flex;align-items:center;gap:var(--space-3);padding:var(--space-2) 0;">
-              <input type="checkbox" value="${s}" ${dapp.scopes.includes(s) ? 'checked' : ''}>
-              <div style="flex:1;min-width:0;">
-                <span style="font-weight:600;">${s}</span>
-                <span style="font-size:var(--text-xs);color:var(--color-text-muted);margin-left:var(--space-2);">${escapeHtml(info.desc)}</span>
+            <div class="dev-scope-rw-row">
+              <label class="dev-scope-checkbox" style="display:flex;align-items:center;gap:var(--space-3);">
+                <input type="checkbox" data-scope="${s}" data-type="rw" ${enabled ? 'checked' : ''}>
+                <div style="flex:1;min-width:0;">
+                  <span style="font-weight:600;">${s}</span>
+                  <span style="font-size:var(--text-xs);color:var(--color-text-muted);margin-left:var(--space-2);">${escapeHtml(config.desc)}</span>
+                </div>
+              </label>
+              <div class="dev-scope-access-selector" data-scope="${s}" style="${enabled ? '' : 'display:none;'}">
+                <button type="button" class="dev-scope-access-btn ${accessValue === 'read' ? 'active' : ''}" data-value="read">Read only</button>
+                <button type="button" class="dev-scope-access-btn ${accessValue === 'write' ? 'active' : ''}" data-value="write">Write only</button>
+                <button type="button" class="dev-scope-access-btn ${accessValue === 'read_write' ? 'active' : ''}" data-value="read_write">Read & write</button>
               </div>
-              <span class="dev-scope-badge ${info.access}">${accessLabel}</span>
-            </label>`;
+            </div>`;
           }).join('')}
         </div>
       </div>
@@ -571,6 +615,24 @@ function renderSettingsTab(dapp) {
 
   document.getElementById('btn-save-settings')?.addEventListener('click', () => {
     saveDappSettings(dapp.clientId);
+  });
+
+  // Wire rw scope checkbox toggles (show/hide access selector)
+  container.querySelectorAll('input[data-type="rw"]').forEach(checkbox => {
+    checkbox.addEventListener('change', () => {
+      const scope = checkbox.dataset.scope;
+      const selector = container.querySelector(`.dev-scope-access-selector[data-scope="${scope}"]`);
+      if (selector) selector.style.display = checkbox.checked ? '' : 'none';
+    });
+  });
+
+  // Wire access selector buttons
+  container.querySelectorAll('.dev-scope-access-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const selector = btn.closest('.dev-scope-access-selector');
+      selector.querySelectorAll('.dev-scope-access-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
   });
 }
 
@@ -593,7 +655,23 @@ async function saveDappSettings(clientId) {
   const description = document.getElementById('settings-desc').value.trim();
   const uriInputs = document.querySelectorAll('.settings-uri-input');
   const redirectUris = Array.from(uriInputs).map(i => i.value.trim()).filter(Boolean);
-  const scopes = Array.from(document.querySelectorAll('#settings-scopes input:checked')).map(i => i.value);
+  // Build scopes from UI state
+  const scopes = [];
+  document.querySelectorAll('#settings-scopes input[data-scope]').forEach(input => {
+    if (!input.checked) return;
+    const scope = input.dataset.scope;
+    const type = input.dataset.type;
+    if (type === 'ro' || type === 'action') {
+      scopes.push(scope); // "balance", "profile", "swap", "send", "sign"
+    } else {
+      // rw scope (messages) — read the access selector
+      const selector = document.querySelector(`.dev-scope-access-selector[data-scope="${scope}"]`);
+      const activeBtn = selector?.querySelector('.dev-scope-access-btn.active');
+      const access = activeBtn?.dataset.value || 'read_write';
+      if (access === 'read' || access === 'read_write') scopes.push(scope + ':read');
+      if (access === 'write' || access === 'read_write') scopes.push(scope + ':write');
+    }
+  });
 
   if (!name) return showToast('App name is required');
 
@@ -697,14 +775,30 @@ async function renderUsageTab(dapp) {
 // ==================== Skill Doc Tab ====================
 
 function generateSkillMd(dapp) {
-  const scopeLines = (dapp.scopes || []).map(s => {
-    const desc = SCOPE_DESCRIPTIONS[s] || s;
-    const access = (['balance', 'profile'].includes(s)) ? 'Read only' : 'Read & write';
-    return `- **${s}** — ${desc} (${access})`;
+  // Group scopes for display: messages has read/write, others are simple
+  const roScopes = ['balance', 'profile'];
+  const scopeGroups = {};
+  for (const s of (dapp.scopes || [])) {
+    const base = s.split(':')[0];
+    if (!scopeGroups[base]) scopeGroups[base] = [];
+    scopeGroups[base].push(s);
+  }
+  const scopeLines = Object.entries(scopeGroups).map(([base, scopes]) => {
+    const desc = SCOPE_DESCRIPTIONS[scopes[0]] || SCOPE_DESCRIPTIONS[base] || base;
+    if (roScopes.includes(base)) return `- **${base}** — ${desc} (Read only)`;
+    if (base === 'messages') {
+      const hasRead = scopes.some(s => s.endsWith(':read'));
+      const hasWrite = scopes.some(s => s.endsWith(':write'));
+      const access = (hasRead && hasWrite) ? 'Read & write' : (hasRead ? 'Read only' : 'Write only');
+      return `- **${base}** — ${desc} (${access})`;
+    }
+    return `- **${base}** — ${desc}`;
   }).join('\n');
 
   // Direct auth link on Clawnads (operators click this, not the dApp URL)
-  const connectUrl = `https://tormund.io/oauth/connect/${dapp.clientId}`;
+  const dashboardHost = location.hostname.includes('clawnads.org') ? 'app.clawnads.org' : 'app.clawnads.org';
+  const connectUrl = `${location.origin}/oauth/connect/${dapp.clientId}`;
+  const connectDisplay = `${location.hostname}/oauth/connect`;
 
   return `---
 name: ${(dapp.name || 'my-dapp').toLowerCase().replace(/\s+/g, '-')}
@@ -721,11 +815,11 @@ ${dapp.description || dapp.name}
 
 This dApp uses **Login with Clawnads** — an OAuth flow where your operator approves access on the Clawnads consent screen. You don't need to do anything technical — just relay the authorization link below to your operator.
 
-**Prerequisite:** Your operator must have linked their X account to your agent. If they haven't, generate a claim link first: \`POST /agents/YOUR_NAME/auth/claim\` and send them the URL (replace localhost with \`https://claw.tormund.io\`).
+**Prerequisite:** Your operator must have linked their X account to your agent. If they haven't, generate a claim link first: \`POST /agents/YOUR_NAME/auth/claim\` and send them the URL (replace localhost with \`https://${dashboardHost}\`).
 
 **What to do:** Send your operator this message:
 
-> **${dapp.name}** wants to connect with the following permissions. Authorize here: [tormund.io/oauth/connect](${connectUrl})
+> **${dapp.name}** wants to connect with the following permissions. Authorize here: [${connectDisplay}](${connectUrl})
 
 Your operator opens the link, signs in with X, reviews the requested permissions, and approves or denies. That's it — Clawnads handles the rest.
 
@@ -744,8 +838,8 @@ function renderSkillTab(dapp) {
     <div style="margin-bottom:var(--space-4);">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-3);">
         <div>
-          <div class="dev-section-title" style="margin-bottom:var(--space-1);">Agent Skill Doc</div>
-          <div style="font-size:var(--text-xs);color:var(--color-text-muted);line-height:var(--leading-relaxed);">Give this to your agent so it knows how to connect. Generated from your app registration.</div>
+          <div class="dev-section-title" style="margin-bottom:var(--space-1);">OAuth Snippet</div>
+          <div style="font-size:var(--text-xs);color:var(--color-text-muted);line-height:var(--leading-relaxed);">Add this to your dApp's skill.md so agents can log in with Clawnads.</div>
         </div>
         <button class="dev-key-copy" title="Copy" onclick="copyToClipboard(document.getElementById('skill-md-content').textContent, this)">
           <i data-lucide="copy"></i>

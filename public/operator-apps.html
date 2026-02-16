@@ -226,7 +226,7 @@
       box-shadow: var(--shadow-elevated);
     }
     .op-login-crab { margin-bottom: var(--space-6); }
-    .op-login-crab img { opacity: 0.7; }
+    .op-login-crab img { }
     .op-login-title { font-size: var(--text-xl); font-weight: 700; margin-bottom: var(--space-2); }
     .op-login-desc { font-size: var(--text-sm); color: var(--color-text-secondary); margin-bottom: var(--space-8); line-height: var(--leading-relaxed); }
     .op-btn-x {
@@ -261,32 +261,23 @@
       font-size: 11px; font-weight: 700; flex-shrink: 0;
     }
 
-    /* ---- Header user bubble ---- */
-    .op-header-user {
-      position: relative;
+    /* ---- Header user PFP ---- */
+    .op-header-user { position: relative; }
+    .op-header-pfp {
+      width: 32px; height: 32px; border-radius: 50%; overflow: hidden;
+      border: none; padding: 0; cursor: pointer;
+      background: var(--color-bg-elevated);
+      transition: opacity var(--transition-fast);
     }
-    .op-header-bubble {
-      display: flex; align-items: center; gap: var(--space-3);
-      padding: var(--space-2) var(--space-4) var(--space-2) var(--space-2);
-      background: var(--color-bg-card); border: 1px solid var(--color-border);
-      border-radius: var(--radius-pill); cursor: pointer;
-      transition: border-color var(--transition-fast);
-    }
-    .op-header-bubble:hover { border-color: var(--color-border-subtle); }
-    .op-header-avatar {
-      width: 24px; height: 24px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
-    }
-    .op-header-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
-    .op-header-username {
-      font-size: var(--text-xs); font-weight: 500; color: var(--color-text-secondary);
-    }
+    .op-header-pfp:hover { opacity: 0.85; }
+    .op-header-pfp img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .op-header-dropdown {
-      display: none; position: absolute; top: calc(100% + 6px); right: 0;
+      display: none; position: fixed;
       background: var(--color-bg-card); border: 1px solid var(--color-border);
       border-radius: var(--radius-lg); box-shadow: var(--shadow-elevated);
-      min-width: 140px; padding: var(--space-2) 0; z-index: 100;
+      min-width: 140px; padding: var(--space-2) 0; z-index: 9999;
     }
-    .op-header-user:hover .op-header-dropdown { display: block; }
+    .op-header-dropdown.open { display: block; }
     .op-header-dropdown-item {
       display: block; width: 100%; padding: var(--space-3) var(--space-6);
       background: none; border: none; text-align: left;
@@ -317,7 +308,7 @@
   <!-- Header -->
   <header class="header">
     <div class="logo">
-      <a href="https://claw.tormund.io" style="display:flex;text-decoration:none;"><img src="/clawnads-logo-white.svg" alt="Clawnads"></a>
+      <a href="/" style="display:flex;text-decoration:none;"><img src="/clawnads-logo-white.svg" alt="Clawnads"></a>
     </div>
     <div class="header-right" id="header-right"></div>
   </header>
@@ -332,7 +323,7 @@
   <div id="main" style="flex:1;display:flex;flex-direction:column;"></div>
 
   <script>
-    const LOGIN_URL = '/developers/auth/login?redirect=' + encodeURIComponent('https://tormund.io/operator');
+    const LOGIN_URL = '/developers/auth/login?redirect=' + encodeURIComponent(location.origin + '/operator');
     // Sad crab SVG (inline, small)
     const SAD_CRAB = `<svg width="80" height="44" viewBox="0 0 100 55" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M31.2099 45.0527C31.3816 45.1109 31.3138 45.0772 31.455 45.1611C32.589 45.8338 33.9277 46.2766 35.1815 46.668C34.9152 47.0227 34.2144 47.7101 33.8407 48.1631C31.988 50.4053 31.1523 52.0517 30.078 54.6768C30.0466 54.7368 29.9425 54.8509 29.8944 54.9082C29.6623 55.008 29.5453 55.0327 29.3007 54.9521C26.7826 54.1202 26.2768 50.8331 27.1229 48.6533C27.8846 46.6925 29.4041 45.8487 31.2099 45.0527ZM68.4852 45.1162C69.0621 45.0313 70.4841 45.959 70.994 46.3555C73.2311 48.0924 73.9772 51.4654 72.1386 53.7686C71.8237 54.1626 70.946 54.9875 70.3876 54.9941C70.1555 54.9966 70.0611 54.9048 69.911 54.751C69.638 54.2115 69.4323 53.5146 69.1386 52.9385C67.8436 50.3981 66.7678 48.5855 64.6503 46.7012C65.9883 46.2882 67.3058 45.8796 68.4852 45.1162ZM75.0976 41.0518C77.6372 41.2724 79.9589 41.8337 81.8173 43.6602C84.0285 45.8334 84.4932 49.2289 82.1864 51.5244C81.7756 51.934 81.3041 52.3176 80.9091 51.668C80.7124 51.3342 80.2057 50.7078 79.9491 50.3447C77.9262 47.488 74.8661 44.6508 71.4413 43.6699C72.4779 43.2153 73.1779 42.6328 74.0526 41.916C74.4626 41.5805 74.6178 41.3382 75.0976 41.0518ZM24.953 41.1348C25.2018 41.3081 25.712 41.8073 25.994 42.043C26.8766 42.7798 27.5021 43.1421 28.5184 43.6533C25.1888 44.6816 22.494 46.9576 20.4198 49.7178C20.1465 50.0822 19.9759 50.3986 19.6708 50.7539L19.6093 50.8242C19.3237 51.0898 19.1644 51.66 18.7499 51.9531C18.4278 51.9673 18.1104 51.9103 17.8778 51.6797C14.6291 48.4648 16.6499 43.7235 20.4257 42.0674C21.7284 41.4963 22.1907 41.3268 23.6132 41.1611C24.0699 41.107 24.4952 41.1264 24.953 41.1348ZM50.412 21.7686C53.8394 21.7239 58.3896 22.4166 61.6933 23.4268C65.9905 24.9067 70.3972 27.0117 73.7499 30.1299C76.8457 33.0097 78.0987 34.494 74.744 37.8359C70.2383 42.3231 64.4548 44.3785 58.3495 45.5908C55.5323 46.1503 52.3726 46.1943 49.5321 46.1885C45.1317 46.1735 41.0227 45.7038 36.8075 44.4365C31.8682 42.951 25.0118 39.5832 23.1005 34.5C23.4202 32.8506 24.6728 31.4788 25.8983 30.3223C29.2819 27.1293 33.7394 24.8807 38.1278 23.4404C39.442 22.9808 40.9113 22.8445 42.2343 22.5049C45.0465 21.7828 47.5417 21.7667 50.412 21.7686ZM58.2714 36.7139C53.1801 33.6592 46.8197 33.6593 41.7284 36.7139C41.018 37.1401 40.7875 38.0621 41.2138 38.7725C41.6401 39.4825 42.5612 39.7122 43.2714 39.2861C47.4127 36.8014 52.5871 36.8013 56.7284 39.2861C57.4386 39.7122 58.3597 39.4825 58.786 38.7725C59.2122 38.0621 58.9817 37.1401 58.2714 36.7139ZM87.0839 0C92.2005 0.461954 97.6246 4.65656 99.1727 9.55762C99.4757 10.5174 100.012 12.7205 99.9999 13.7236C99.8876 22.8356 91.6694 29.0257 83.3222 30.3164C80.1773 30.8026 79.3214 31.1331 76.5575 29.6787C76.208 29.4223 75.9171 29.2185 75.747 28.8213C75.8109 28.4152 76.4329 28.1363 76.828 27.9307C78.3952 27.1126 79.3915 25.4821 80.5927 24.458C79.8025 23.6312 79.3988 22.8348 78.8427 21.8477C76.0729 16.926 76.379 9.33155 80.6288 5.25586C81.4663 7.83061 84.0478 12.8462 86.3554 14.2852C86.9364 14.1176 87.3281 12.3194 87.4335 11.7666C88.1696 7.90054 87.8807 3.83257 87.0839 0ZM12.5751 0.0224609C12.674 0.0188039 12.7036 0.0419007 12.8056 0.0742188C12.8109 0.105027 12.4873 2.15371 12.4237 2.41699C11.9339 4.44521 11.9777 13.3766 13.5809 14.2666C13.9333 14.0704 14.3942 13.5678 14.6747 13.2617C16.8563 10.8818 18.1966 8.25826 19.329 5.29004C20.1374 6.22699 21.0198 7.43298 21.5643 8.54297C24.0217 13.5521 22.9833 20.4614 19.1913 24.5205C20.1645 25.3207 20.9902 26.6263 22.1073 27.4258C22.6294 27.799 23.8926 28.3973 24.0468 28.7637C23.9779 29.0606 23.8152 29.1944 23.6112 29.4258C20.8948 31.2226 19.7045 30.7652 16.7216 30.3389C10.3594 29.4295 3.61264 25.3576 1.07411 19.2295C-2.55085 10.4783 3.42841 1.30598 12.5751 0.0224609ZM62.164 8.62793C65.1164 8.21829 67.8443 10.2775 68.2694 13.2363C68.6944 16.1954 66.6565 18.9439 63.7089 19.3867C60.7381 19.8328 57.9722 17.7685 57.5438 14.7861C57.1159 11.804 59.1885 9.04114 62.164 8.62793ZM36.1874 8.64844C39.1466 8.16434 41.9354 10.1844 42.4081 13.1543C42.8805 16.1242 40.8577 18.9139 37.8954 19.3779C34.9473 19.8393 32.1821 17.8218 31.7118 14.8662C31.2419 11.911 33.243 9.13068 36.1874 8.64844ZM37.0683 11.2412C35.6404 11.2416 34.4827 12.4037 34.4823 13.8359C34.4824 15.2683 35.6403 16.4303 37.0683 16.4307C38.4963 16.4305 39.655 15.2684 39.6552 13.8359C39.6548 12.4036 38.4962 11.2414 37.0683 11.2412ZM62.9306 11.2412C61.5023 11.2413 60.3447 12.4033 60.3446 13.8359C60.3448 15.2685 61.5024 16.4296 62.9306 16.4297C64.3588 16.4297 65.5164 15.2686 65.5165 13.8359C65.5165 12.4032 64.3589 11.2412 62.9306 11.2412Z" fill="white"/></svg>`;
 
@@ -357,18 +348,31 @@
 
     function renderHeaderUser(session) {
       const hr = document.getElementById('header-right');
-      const avatarHtml = session.avatar
-        ? `<div class="op-header-avatar"><img src="${esc(session.avatar)}" alt=""></div>`
-        : '';
-      hr.innerHTML = `<div class="op-header-user">
-        <div class="op-header-bubble">
-          ${avatarHtml}
-          <span class="op-header-username">@${esc(session.username)}</span>
-        </div>
+      if (!session.avatar) return;
+      const wrap = document.createElement('div');
+      wrap.className = 'op-header-user';
+      wrap.innerHTML = `<button class="op-header-pfp" title="@${esc(session.username)}"><img src="${esc(session.avatar)}" alt=""></button>
         <div class="op-header-dropdown">
-          <button class="op-header-dropdown-item" onclick="logout()">Sign out</button>
-        </div>
-      </div>`;
+          <button class="op-header-dropdown-item" data-action="logout">Log out</button>
+        </div>`;
+      hr.appendChild(wrap);
+
+      const btn = wrap.querySelector('.op-header-pfp');
+      const dropdown = wrap.querySelector('.op-header-dropdown');
+      document.addEventListener('mousedown', (e) => {
+        if (wrap.contains(e.target)) return;
+        dropdown.classList.remove('open');
+      });
+      btn.addEventListener('click', () => {
+        const r = btn.getBoundingClientRect();
+        dropdown.style.top = (r.bottom + 6) + 'px';
+        dropdown.style.right = (window.innerWidth - r.right) + 'px';
+        dropdown.classList.toggle('open');
+      });
+      wrap.querySelector('[data-action="logout"]').addEventListener('click', () => {
+        dropdown.classList.remove('open');
+        logout();
+      });
     }
 
     async function logout() {
@@ -386,9 +390,9 @@
       document.getElementById('main').innerHTML = `
         <div class="op-login-wrap">
           <div class="op-login-card">
-            <div class="op-login-crab"><img src="/happy-crab-blue.svg" alt="" width="48" height="48"></div>
+            <div class="op-login-crab"><img src="/happy-crab.svg" alt="" width="120" height="66"></div>
             <div class="op-login-title">Operator Portal</div>
-            <div class="op-login-desc">Sign in to manage your agents and connected apps</div>
+            <div class="op-login-desc">Sign in to manage your agent's connected apps</div>
             <a href="${LOGIN_URL}" class="op-btn-x">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
               Sign in with X

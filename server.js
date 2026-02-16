@@ -7,6 +7,12 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { ethers } = require('ethers');
 const analytics = require('./analytics');
+const {
+  generateRegistrationOptions,
+  verifyRegistrationResponse,
+  generateAuthenticationOptions,
+  verifyAuthenticationResponse
+} = require('@simplewebauthn/server');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -15,12 +21,85 @@ const PORT = process.env.PORT || 3000;
 const ADMIN_SECRET = process.env.ADMIN_SECRET || null;
 
 // Admin web UI (X OAuth login)
+// Two X apps: one for clawnads.org domains, one for clawnads.org domains
 const X_CLIENT_ID = process.env.X_CLIENT_ID || null;
 const X_CLIENT_SECRET = process.env.X_CLIENT_SECRET || null;
+const X_CLIENT_ID_NEW = process.env.X_CLIENT_ID_NEW || null;
+const X_CLIENT_SECRET_NEW = process.env.X_CLIENT_SECRET_NEW || null;
 const SESSION_SECRET = process.env.SESSION_SECRET || null;
-const ADMIN_ALLOWED_USERS = (process.env.ADMIN_ALLOWED_USERS || '').split(',').map(u => u.trim()).filter(Boolean);
+
+// Pick the right X OAuth credentials based on request domain
+function getXCredentials(req) {
+  const host = (req.headers.host || '').toLowerCase();
+  if (host.includes('clawnads.org') && X_CLIENT_ID_NEW && X_CLIENT_SECRET_NEW) {
+    return { clientId: X_CLIENT_ID_NEW, clientSecret: X_CLIENT_SECRET_NEW };
+  }
+  return { clientId: X_CLIENT_ID, clientSecret: X_CLIENT_SECRET };
+}
+const ADMIN_ALLOWED_USERS = (process.env.ADMIN_ALLOWED_USERS || '').split(',').map(u => u.trim()).filter(Boolean); // X usernames allowed admin access
 const ADMIN_COOKIE_NAME = 'clawnads_admin';
 const ADMIN_COOKIE_MAX_AGE_SEC = 24 * 60 * 60; // 24 hours
+
+// Domain helpers — derive URLs from the incoming request so both
+// clawnads.org and clawnads.org domain families work simultaneously.
+function getRootDomain(req) {
+  const host = (req.headers['x-forwarded-host'] || req.headers.host || '').replace(/:.*$/, '');
+  return host.includes('clawnads.org') ? 'clawnads.org' : 'clawnads.org';
+}
+function getDashboardUrl(req) {
+  const proto = req.headers['x-forwarded-proto'] || req.protocol;
+  return getRootDomain(req) === 'clawnads.org'
+    ? `${proto}://app.clawnads.org` : `${proto}://app.clawnads.org`;
+}
+function getConsoleUrl(req) {
+  const proto = req.headers['x-forwarded-proto'] || req.protocol;
+  return getRootDomain(req) === 'clawnads.org'
+    ? `${proto}://console.clawnads.org` : `${proto}://console.clawnads.org`;
+}
+function getRootUrl(req) {
+  const proto = req.headers['x-forwarded-proto'] || req.protocol;
+  return `${proto}://${getRootDomain(req)}`;
+}
+// For contexts without req (Telegram notifications, etc)
+const DEFAULT_DASHBOARD_URL = process.env.DASHBOARD_URL || 'https://app.clawnads.org';
+
+// WebAuthn configuration — RP ID is domain-scoped, derived per-request
+const WEBAUTHN_RP_NAME = 'Clawnads';
+function getWebAuthnConfig(req) {
+  if (process.env.NODE_ENV !== 'production') {
+    return { rpId: 'localhost', origin: 'http://localhost:3000' };
+  }
+  const host = (req.headers['x-forwarded-host'] || req.headers.host || '').replace(/:.*$/, '');
+  if (host.includes('clawnads.org')) {
+    return { rpId: 'app.clawnads.org', origin: 'https://app.clawnads.org' };
+  }
+  return { rpId: 'app.clawnads.org', origin: 'https://app.clawnads.org' };
+}
+const WEBAUTHN_CREDENTIALS_FILE = path.join(__dirname, 'data', 'webauthn-credentials.json');
+const webauthnChallenges = new Map();
+// Clean up expired challenges every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of webauthnChallenges) {
+    if (v.expires < now) webauthnChallenges.delete(k);
+  }
+}, 5 * 60 * 1000);
+
+function loadWebAuthnCredentials() {
+  try {
+    if (fs.existsSync(WEBAUTHN_CREDENTIALS_FILE)) {
+      return JSON.parse(fs.readFileSync(WEBAUTHN_CREDENTIALS_FILE, 'utf-8'));
+    }
+  } catch (e) { console.error('Failed to load WebAuthn credentials:', e.message); }
+  return { credentials: [] };
+}
+
+function saveWebAuthnCredentials(data) {
+  const tmpFile = WEBAUTHN_CREDENTIALS_FILE + '.tmp';
+  fs.writeFileSync(tmpFile, JSON.stringify(data, null, 2));
+  fs.renameSync(tmpFile, WEBAUTHN_CREDENTIALS_FILE);
+  try { fs.chmodSync(WEBAUTHN_CREDENTIALS_FILE, 0o600); } catch (e) {}
+}
 
 // Developer portal (self-service dApp registration)
 const DEV_COOKIE_NAME = 'clawnads_dev';
@@ -194,7 +273,7 @@ app.get('/', (req, res, next) => {
   if (host.startsWith('test.')) {
     return res.redirect('/oauth/playground');
   }
-  if (host === 'tormund.io' || host === 'www.tormund.io') {
+  if (host === 'clawnads.org' || host === 'www.clawnads.org' || host === 'clawnads.org' || host === 'www.clawnads.org') {
     return res.sendFile(path.join(__dirname, 'public', 'landing.html'));
   }
   next();
@@ -217,6 +296,7 @@ const STORE_FILE = path.join(__dirname, 'data', 'store.json');
 const NOTIFICATIONS_FILE = path.join(__dirname, 'data', 'notifications.json');
 const REG_KEYS_FILE = path.join(__dirname, 'data', 'registration-keys.json');
 const DAPPS_FILE = path.join(__dirname, 'data', 'dapps.json');
+const COMPETITIONS_FILE = path.join(__dirname, 'data', 'competitions.json');
 
 // Ensure data directory exists
 if (!fs.existsSync(path.join(__dirname, 'data'))) {
@@ -318,6 +398,136 @@ function saveStore(store) {
   const tmpFile = STORE_FILE + '.tmp.' + process.pid;
   fs.writeFileSync(tmpFile, JSON.stringify(store, null, 2));
   fs.renameSync(tmpFile, STORE_FILE);
+}
+
+// Load/save competitions
+function loadCompetitions() {
+  try {
+    if (fs.existsSync(COMPETITIONS_FILE)) {
+      return JSON.parse(fs.readFileSync(COMPETITIONS_FILE, 'utf8'));
+    }
+  } catch (err) {
+    console.error('Error loading competitions:', err);
+  }
+  return {};
+}
+
+function saveCompetitions(competitions) {
+  const tmpFile = COMPETITIONS_FILE + '.tmp.' + process.pid;
+  fs.writeFileSync(tmpFile, JSON.stringify(competitions, null, 2));
+  fs.renameSync(tmpFile, COMPETITIONS_FILE);
+}
+
+// Calculate swap P&L for a competition entrant
+// Only counts type:'swap' transactions where MON is bought or sold
+function calculateCompetitionPnL(agent, joinedAt, endTime, startTime) {
+  const txs = agent.transactions || [];
+  let monGained = 0;
+  let monSpent = 0;
+  let rawMonGained = 0; // uncapped, for volume display
+  let rawMonSpent = 0;  // same as monSpent, for symmetry
+  let tradeCount = 0;
+
+  // Effective start: the later of joinedAt and competition startTime
+  // This ensures pre-registered agents only score from competition start
+  const effectiveStart = startTime && joinedAt < startTime ? startTime : joinedAt;
+
+  // Match MON/WMON by symbol or contract address (historical data uses addresses)
+  const isMonToken = (token) => {
+    if (!token) return false;
+    const t = token.toLowerCase();
+    return t === 'mon' || t === 'wmon' ||
+      t === MONAD_TOKENS.MON.toLowerCase() ||
+      t === MONAD_TOKENS.WMON.toLowerCase();
+  };
+
+  // Normalize non-MON token identifier for ledger tracking
+  const tokenKey = (token) => {
+    if (!token) return null;
+    const t = token.toLowerCase();
+    // Map known symbols and addresses to canonical keys
+    for (const [sym, addr] of Object.entries(MONAD_TOKENS)) {
+      if (sym === 'MON' || sym === 'WMON') continue;
+      if (t === sym.toLowerCase() || t === addr.toLowerCase()) return sym;
+    }
+    return t; // unknown token — use raw address
+  };
+
+  // Decimals for normalizing raw amounts to human units
+  const tokenDecimals = { USDC: 6, USDT: 6, WETH: 18, WBTC: 8 };
+
+  // Ledger: tracks how much of each non-MON token was earned during the
+  // competition via MON sells.  When the agent later buys MON with that
+  // token, we only credit the portion backed by competition-earned balance.
+  // This prevents pre-existing token hoards from inflating the score.
+  const earnedTokens = {}; // tokenKey -> amount in human units
+
+  // Two-pass approach: first pass builds the ledger (MON→token sells),
+  // second pass scores MON buys against the ledger.
+  const competitionSwaps = [];
+  for (const tx of txs) {
+    if (tx.type !== 'swap') continue;
+    if (tx.timestamp < effectiveStart) continue;
+    if (endTime && tx.timestamp > endTime) continue;
+    competitionSwaps.push(tx);
+  }
+
+  // Sort chronologically (should already be, but be safe)
+  competitionSwaps.sort((a, b) => (a.timestamp > b.timestamp ? 1 : -1));
+
+  for (const tx of competitionSwaps) {
+    tradeCount++;
+    const sellIsMon = isMonToken(tx.sellToken);
+    const buyIsMon = isMonToken(tx.buyToken);
+
+    if (sellIsMon && !buyIsMon) {
+      // Agent sells MON for another token — straightforward spend
+      const spent = parseFloat(tx.sellAmount) / 1e18;
+      monSpent += spent;
+      rawMonSpent += spent;
+
+      // Credit the earned token to the ledger
+      const key = tokenKey(tx.buyToken);
+      if (key) {
+        const dec = tokenDecimals[key] || 18;
+        const earned = parseFloat(tx.buyAmount) / (10 ** dec);
+        earnedTokens[key] = (earnedTokens[key] || 0) + earned;
+      }
+    } else if (buyIsMon && !sellIsMon) {
+      // Agent buys MON with another token — cap gains by earned balance
+      const rawGained = parseFloat(tx.buyAmount) / 1e18;
+      rawMonGained += rawGained;
+      const key = tokenKey(tx.sellToken);
+      const dec = tokenDecimals[key] || 18;
+      const tokenSold = parseFloat(tx.sellAmount) / (10 ** dec);
+      const available = (key && earnedTokens[key]) ? earnedTokens[key] : 0;
+
+      if (available <= 0) {
+        // No competition-earned balance of this token — gains don't count
+        // (agent is converting pre-existing holdings)
+      } else if (tokenSold <= available) {
+        // Fully covered by competition-earned balance
+        monGained += rawGained;
+        earnedTokens[key] -= tokenSold;
+      } else {
+        // Partially covered — pro-rate the MON gained
+        const fraction = available / tokenSold;
+        monGained += rawGained * fraction;
+        earnedTokens[key] = 0;
+      }
+    } else if (sellIsMon && buyIsMon) {
+      // MON→WMON or WMON→MON wrap/unwrap — net zero, just count the trade
+    }
+    // Token-to-token swaps (no MON on either side) don't affect MON P&L
+  }
+
+  return {
+    pnlMON: parseFloat((monGained - monSpent).toFixed(6)),
+    monGained: parseFloat(monGained.toFixed(6)),
+    monSpent: parseFloat(monSpent.toFixed(6)),
+    volumeMON: parseFloat((rawMonGained + rawMonSpent).toFixed(6)),
+    tradeCount
+  };
 }
 
 // Load/save registration keys
@@ -564,10 +774,16 @@ function authenticateAdmin(req, res, next) {
 
 // In-memory store for OAuth PKCE state (auto-expires entries after 10 min)
 const oauthPendingFlows = new Map();
+// Cache X user profiles to avoid hitting /2/users/me rate limit (75/15min)
+// Key: X user ID, Value: { user, timestamp }
+const xUserProfileCache = new Map();
 setInterval(() => {
   const now = Date.now();
   for (const [key, val] of oauthPendingFlows) {
     if (now - val.created > 600000) oauthPendingFlows.delete(key);
+  }
+  for (const [key, val] of xUserProfileCache) {
+    if (now - val.timestamp > 900000) xUserProfileCache.delete(key); // 15 min TTL
   }
 }, 60000);
 
@@ -1042,8 +1258,8 @@ app.post('/admin/register', authenticateAdmin, async (req, res) => {
       wallet,
       tradingConfig: {
         enabled: true,
-        maxPerTradeMON: '500',
-        dailyCapMON: '2500',
+        maxPerTradeMON: '1000',
+        dailyCapMON: '10000',
         allowedTokens: Object.keys(MONAD_TOKENS),
         dailyVolume: { date: new Date().toISOString().slice(0, 10), totalMON: '0', tradeCount: 0 }
       }
@@ -1138,7 +1354,8 @@ app.delete('/admin/registration-keys/:label', authenticateAdmin, (req, res) => {
 
 // Serve admin page — authenticated users go to analytics (the admin home)
 app.get('/admin', (req, res) => {
-  if (!X_CLIENT_ID || !X_CLIENT_SECRET || !SESSION_SECRET) {
+  const { clientId, clientSecret } = getXCredentials(req);
+  if (!clientId || !clientSecret || !SESSION_SECRET) {
     return res.status(503).send('Admin UI not configured');
   }
   // Migration: clear any legacy Path=/admin cookie (we now use Path=/)
@@ -1182,6 +1399,14 @@ app.get('/admin/store-manage', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin-store.html'));
 });
 
+// Competitions: admin page
+app.get('/competitions', (req, res) => {
+  const cookies = parseCookies(req);
+  const session = verifyAdminSession(cookies[ADMIN_COOKIE_NAME]);
+  if (!session) return res.redirect('/admin');
+  res.sendFile(path.join(__dirname, 'public', 'admin-competitions.html'));
+});
+
 // Floor — public sim sandbox (embedded in dashboard iframe, no auth)
 app.get('/floor', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'floor.html'));
@@ -1200,7 +1425,8 @@ app.get('/admin/api/session', (req, res) => {
 
 // Start OAuth flow
 app.get('/admin/auth/login', (req, res) => {
-  if (!X_CLIENT_ID) return res.status(503).send('X OAuth not configured');
+  const { clientId } = getXCredentials(req);
+  if (!clientId) return res.status(503).send('X OAuth not configured');
 
   const state = crypto.randomBytes(16).toString('hex');
   const codeVerifier = crypto.randomBytes(32).toString('base64url');
@@ -1215,7 +1441,7 @@ app.get('/admin/auth/login', (req, res) => {
 
   const params = new URLSearchParams({
     response_type: 'code',
-    client_id: X_CLIENT_ID,
+    client_id: clientId,
     redirect_uri: redirectUri,
     scope: 'users.read tweet.read',
     state: state,
@@ -1260,17 +1486,18 @@ app.get('/admin/auth/callback', async (req, res) => {
     const host = req.headers['x-forwarded-host'] || req.headers.host;
     const redirectUri = `${proto}://${host}/admin/auth/callback`;
 
-    // Exchange code for access token
+    // Exchange code for access token (use domain-aware credentials)
+    const { clientId: xClientId, clientSecret: xClientSecret } = getXCredentials(req);
     const tokenBody = new URLSearchParams({
       grant_type: 'authorization_code',
       code: code,
       redirect_uri: redirectUri,
-      client_id: X_CLIENT_ID,
+      client_id: xClientId,
       code_verifier: pending.codeVerifier
     }).toString();
 
     // Twitter Web App type requires Basic auth (client_id:client_secret)
-    const basicAuth = Buffer.from(`${X_CLIENT_ID}:${X_CLIENT_SECRET}`).toString('base64');
+    const basicAuth = Buffer.from(`${xClientId}:${xClientSecret}`).toString('base64');
 
     const tokenResp = await httpRequest('https://api.x.com/2/oauth2/token', {
       method: 'POST',
@@ -1284,13 +1511,27 @@ app.get('/admin/auth/callback', async (req, res) => {
 
     if (!tokenResp.access_token) throw new Error('No access token in response');
 
-    // Fetch user profile (include profile image)
-    const userResp = await httpRequest('https://api.x.com/2/users/me?user.fields=profile_image_url', {
-      headers: { 'Authorization': `Bearer ${tokenResp.access_token}` }
-    });
-
-    const user = userResp.data;
+    // Fetch user profile (include profile image) — with 429 retry
+    let user;
+    const fetchXProfile = async (retries = 2) => {
+      try {
+        return await httpRequest('https://api.x.com/2/users/me?user.fields=profile_image_url', {
+          headers: { 'Authorization': `Bearer ${tokenResp.access_token}` }
+        });
+      } catch (err) {
+        if (err.message.includes('429') && retries > 0) {
+          console.log(`X API 429 — retrying in 3s (${retries} retries left)`);
+          await new Promise(r => setTimeout(r, 3000));
+          return fetchXProfile(retries - 1);
+        }
+        throw err;
+      }
+    };
+    const userResp = await fetchXProfile();
+    user = userResp.data;
     if (!user || !user.username) throw new Error('Could not fetch user profile');
+    // Cache for future logins
+    xUserProfileCache.set(user.id, { user, timestamp: Date.now() });
 
     // ---- DISPATCH BASED ON FLOW TYPE ----
 
@@ -1356,12 +1597,12 @@ app.get('/admin/auth/callback', async (req, res) => {
         </head><body>
         <header class="cs-header"><img src="/clawnads-logo-white.svg" alt="Clawnads"></header>
         <div class="cs-body">
-          <svg width="120" height="66" viewBox="0 0 100 55" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-bottom:var(--space-4);"><path d="M31.2099 45.0527C31.3816 45.1109 31.3138 45.0772 31.455 45.1611C32.589 45.8338 33.9277 46.2766 35.1815 46.668C34.9152 47.0227 34.2144 47.7101 33.8407 48.1631C31.988 50.4053 31.1523 52.0517 30.078 54.6768C30.0466 54.7368 29.9425 54.8509 29.8944 54.9082C29.6623 55.008 29.5453 55.0327 29.3007 54.9521C26.7826 54.1202 26.2768 50.8331 27.1229 48.6533C27.8846 46.6925 29.4041 45.8487 31.2099 45.0527ZM68.4852 45.1162C69.0621 45.0313 70.4841 45.959 70.994 46.3555C73.2311 48.0924 73.9772 51.4654 72.1386 53.7686C71.8237 54.1626 70.946 54.9875 70.3876 54.9941C70.1555 54.9966 70.0611 54.9048 69.911 54.751C69.638 54.2115 69.4323 53.5146 69.1386 52.9385C67.8436 50.3981 66.7678 48.5855 64.6503 46.7012C65.9883 46.2882 67.3058 45.8796 68.4852 45.1162ZM75.0976 41.0518C77.6372 41.2724 79.9589 41.8337 81.8173 43.6602C84.0285 45.8334 84.4932 49.2289 82.1864 51.5244C81.7756 51.934 81.3041 52.3176 80.9091 51.668C80.7124 51.3342 80.2057 50.7078 79.9491 50.3447C77.9262 47.488 74.8661 44.6508 71.4413 43.6699C72.4779 43.2153 73.1779 42.6328 74.0526 41.916C74.4626 41.5805 74.6178 41.3382 75.0976 41.0518ZM24.953 41.1348C25.2018 41.3081 25.712 41.8073 25.994 42.043C26.8766 42.7798 27.5021 43.1421 28.5184 43.6533C25.1888 44.6816 22.494 46.9576 20.4198 49.7178C20.1465 50.0822 19.9759 50.3986 19.6708 50.7539L19.6093 50.8242C19.3237 51.0898 19.1644 51.66 18.7499 51.9531C18.4278 51.9673 18.1104 51.9103 17.8778 51.6797C14.6291 48.4648 16.6499 43.7235 20.4257 42.0674C21.7284 41.4963 22.1907 41.3268 23.6132 41.1611C24.0699 41.107 24.4952 41.1264 24.953 41.1348ZM50.412 21.7686C53.8394 21.7239 58.3896 22.4166 61.6933 23.4268C65.9905 24.9067 70.3972 27.0117 73.7499 30.1299C76.8457 33.0097 78.0987 34.494 74.744 37.8359C70.2383 42.3231 64.4548 44.3785 58.3495 45.5908C55.5323 46.1503 52.3726 46.1943 49.5321 46.1885C45.1317 46.1735 41.0227 45.7038 36.8075 44.4365C31.8682 42.951 25.0118 39.5832 23.1005 34.5C23.4202 32.8506 24.6728 31.4788 25.8983 30.3223C29.2819 27.1293 33.7394 24.8807 38.1278 23.4404C39.442 22.9808 40.9113 22.8445 42.2343 22.5049C45.0465 21.7828 47.5417 21.7667 50.412 21.7686ZM58.786 35.1504C58.3597 34.4405 57.4386 34.2108 56.7284 34.6367C52.587 37.1215 47.4128 37.1215 43.2714 34.6367C42.5612 34.2107 41.6401 34.4405 41.2138 35.1504C40.7875 35.8608 41.0181 36.7828 41.7284 37.209C46.8197 40.2636 53.1801 40.2636 58.2714 37.209C58.9816 36.7827 59.2122 35.8607 58.786 35.1504ZM87.0839 0C92.2005 0.461954 97.6246 4.65656 99.1727 9.55762C99.4757 10.5174 100.012 12.7205 99.9999 13.7236C99.8876 22.8356 91.6694 29.0257 83.3222 30.3164C80.1773 30.8026 79.3214 31.1331 76.5575 29.6787C76.208 29.4223 75.9171 29.2185 75.747 28.8213C75.8109 28.4152 76.4329 28.1363 76.828 27.9307C78.3952 27.1126 79.3915 25.4821 80.5927 24.458C79.8025 23.6312 79.3988 22.8348 78.8427 21.8477C76.0729 16.926 76.379 9.33155 80.6288 5.25586C81.4663 7.83061 84.0478 12.8462 86.3554 14.2852C86.9364 14.1176 87.3281 12.3194 87.4335 11.7666C88.1696 7.90054 87.8807 3.83257 87.0839 0ZM12.5751 0.0224609C12.674 0.0188039 12.7036 0.0419007 12.8056 0.0742188C12.8109 0.105027 12.4873 2.15371 12.4237 2.41699C11.9339 4.44521 11.9777 13.3766 13.5809 14.2666C13.9333 14.0704 14.3942 13.5678 14.6747 13.2617C16.8563 10.8818 18.1966 8.25826 19.329 5.29004C20.1374 6.22699 21.0198 7.43298 21.5643 8.54297C24.0217 13.5521 22.9833 20.4614 19.1913 24.5205C20.1645 25.3207 20.9902 26.6263 22.1073 27.4258C22.6294 27.799 23.8926 28.3973 24.0468 28.7637C23.9779 29.0606 23.8152 29.1944 23.6112 29.4258C20.8948 31.2226 19.7045 30.7652 16.7216 30.3389C10.3594 29.4295 3.61264 25.3576 1.07411 19.2295C-2.55085 10.4783 3.42841 1.30598 12.5751 0.0224609ZM62.164 8.62793C65.1164 8.21829 67.8443 10.2775 68.2694 13.2363C68.6944 16.1954 66.6565 18.9439 63.7089 19.3867C60.7381 19.8328 57.9722 17.7685 57.5438 14.7861C57.1159 11.804 59.1885 9.04114 62.164 8.62793ZM36.1874 8.64844C39.1466 8.16434 41.9354 10.1844 42.4081 13.1543C42.8805 16.1242 40.8577 18.9139 37.8954 19.3779C34.9473 19.8393 32.1821 17.8218 31.7118 14.8662C31.2419 11.911 33.243 9.13068 36.1874 8.64844ZM37.0683 11.2412C35.6404 11.2416 34.4827 12.4037 34.4823 13.8359C34.4824 15.2683 35.6403 16.4303 37.0683 16.4307C38.4963 16.4305 39.655 15.2684 39.6552 13.8359C39.6548 12.4036 38.4962 11.2414 37.0683 11.2412ZM62.9306 11.2412C61.5023 11.2413 60.3447 12.4033 60.3446 13.8359C60.3448 15.2685 61.5024 16.4296 62.9306 16.4297C64.3588 16.4297 65.5164 15.2686 65.5165 13.8359C65.5165 12.4032 64.3589 11.2412 62.9306 11.2412Z" fill="white"/></svg>
+          <img src="/happy-crab.svg" alt="" width="120" height="66" style="margin-bottom:var(--space-4);">
           <div style="font-size:var(--text-2xl);font-weight:700;margin-bottom:var(--space-4);">Agent Claimed</div>
           <div style="font-size:var(--text-sm);color:var(--color-text-secondary);line-height:var(--leading-relaxed);max-width:360px;">
-            Linked to <strong>@${user.username}</strong>. You can now approve or deny third-party dApp access for this agent.
+            Linked to <strong>@${user.username}</strong>. You can now manage dApp access for this agent.
           </div>
-          <div style="font-size:var(--text-xs);color:var(--color-text-muted);margin-top:var(--space-10);">You can close this page.</div>
+          <a href="/" style="display:inline-block;margin-top:var(--space-8);font-size:var(--text-sm);font-weight:600;color:var(--color-text-tertiary);text-decoration:none;">Go to Dashboard</a>
         </div>
         </body></html>`);
     }
@@ -1377,10 +1618,10 @@ app.get('/admin/auth/callback', async (req, res) => {
       const devCookieValue = signDevSession(devPayload);
 
       res.setHeader('Set-Cookie',
-        `${DEV_COOKIE_NAME}=${devCookieValue}; Path=/; Domain=.tormund.io; HttpOnly; Secure; SameSite=Lax; Max-Age=${DEV_COOKIE_MAX_AGE_SEC}`
+        `${DEV_COOKIE_NAME}=${devCookieValue}; Path=/; Domain=.${getRootDomain(req)}; HttpOnly; Secure; SameSite=Lax; Max-Age=${DEV_COOKIE_MAX_AGE_SEC}`
       );
       console.log(`Developer login: @${user.username} (${user.id})`);
-      const devRedirect = pending.redirect || 'https://console.tormund.io/developers';
+      const devRedirect = pending.redirect || (getConsoleUrl(req) + '/developers');
       return res.redirect(devRedirect);
     }
 
@@ -1411,9 +1652,229 @@ app.get('/admin/auth/callback', async (req, res) => {
     console.error('X OAuth callback error:', err.message);
     const agentName = pending?.agentName;
     if (pending?.flowType === 'owner_link') return res.redirect(`/?error=auth_failed&agent=${agentName}`);
-    if (pending?.flowType === 'consent_auth') return res.redirect(`/?error=auth_failed`);
+    if (pending?.flowType === 'consent_auth') {
+      const cid = pending.consentFlowId;
+      if (cid) return res.redirect(`/oauth/consent?flow=${cid}&error=auth_failed`);
+      return res.redirect(`/?error=auth_failed`);
+    }
     if (pending?.flowType === 'developer_login') return res.redirect('/developers?error=auth_failed');
     res.redirect('/admin?error=auth_failed');
+  }
+});
+
+// Passkey login — bypass X OAuth using admin secret
+// POST /admin/auth/passkey  { secret: "..." }
+// Sets the same session cookie as X OAuth would, so all admin pages work
+app.post('/admin/auth/passkey', (req, res) => {
+  const { secret } = req.body;
+  if (!secret || !ADMIN_SECRET || secret !== ADMIN_SECRET) {
+    return res.status(401).json({ success: false, error: 'Invalid secret' });
+  }
+  // Bind to the operator's X account so session is identical to X OAuth login
+  const payload = {
+    un: '4ormund',
+    av: 'https://unavatar.io/x/4ormund',
+    exp: Math.floor(Date.now() / 1000) + ADMIN_COOKIE_MAX_AGE_SEC
+  };
+  const cookieValue = signAdminSession(payload);
+  res.setHeader('Set-Cookie', [
+    `${ADMIN_COOKIE_NAME}=${cookieValue}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${ADMIN_COOKIE_MAX_AGE_SEC}`,
+    `${ADMIN_COOKIE_NAME}=; Path=/admin; HttpOnly; Secure; SameSite=Lax; Max-Age=0`
+  ]);
+  console.log('Admin passkey login (4ormund)');
+  res.json({ success: true, redirect: '/analytics' });
+});
+
+// ===== WebAuthn (fingerprint / Touch ID) =====
+
+// Step 1: Get registration options (requires active admin session)
+app.post('/admin/auth/webauthn/register-options', async (req, res) => {
+  try {
+    // Verify admin session
+    const cookies = parseCookies(req);
+    const session = cookies[ADMIN_COOKIE_NAME] ? verifyAdminSession(cookies[ADMIN_COOKIE_NAME]) : null;
+    if (!session) return res.status(401).json({ success: false, error: 'Not authenticated' });
+
+    const stored = loadWebAuthnCredentials();
+    const excludeCredentials = stored.credentials.map(c => ({
+      id: c.id,
+      transports: c.transports || []
+    }));
+
+    const waConfig = getWebAuthnConfig(req);
+    const options = await generateRegistrationOptions({
+      rpName: WEBAUTHN_RP_NAME,
+      rpID: waConfig.rpId,
+      userName: '4ormund',
+      userDisplayName: '4ormund',
+      authenticatorSelection: {
+        residentKey: 'preferred',
+        userVerification: 'required'
+      },
+      excludeCredentials
+    });
+
+    // Store challenge with 60s TTL
+    const challengeId = crypto.randomBytes(16).toString('hex');
+    webauthnChallenges.set(challengeId, {
+      challenge: options.challenge,
+      expires: Date.now() + 60000
+    });
+
+    res.json({ success: true, options, challengeId });
+  } catch (e) {
+    console.error('WebAuthn register-options error:', e.message);
+    res.status(500).json({ success: false, error: 'Failed to generate options' });
+  }
+});
+
+// Step 2: Verify registration and store credential
+app.post('/admin/auth/webauthn/register', async (req, res) => {
+  try {
+    const cookies = parseCookies(req);
+    const session = cookies[ADMIN_COOKIE_NAME] ? verifyAdminSession(cookies[ADMIN_COOKIE_NAME]) : null;
+    if (!session) return res.status(401).json({ success: false, error: 'Not authenticated' });
+
+    const { challengeId, attestation, label } = req.body;
+    if (!challengeId || !attestation) {
+      return res.status(400).json({ success: false, error: 'Missing challengeId or attestation' });
+    }
+
+    const stored = webauthnChallenges.get(challengeId);
+    if (!stored || stored.expires < Date.now()) {
+      webauthnChallenges.delete(challengeId);
+      return res.status(400).json({ success: false, error: 'Challenge expired' });
+    }
+    webauthnChallenges.delete(challengeId);
+
+    const waConfig = getWebAuthnConfig(req);
+    const verification = await verifyRegistrationResponse({
+      response: attestation,
+      expectedChallenge: stored.challenge,
+      expectedOrigin: waConfig.origin,
+      expectedRPID: waConfig.rpId
+    });
+
+    if (!verification.verified || !verification.registrationInfo) {
+      return res.status(400).json({ success: false, error: 'Verification failed' });
+    }
+
+    const { credential, credentialDeviceType, credentialBackedUp } = verification.registrationInfo;
+
+    const credData = loadWebAuthnCredentials();
+    credData.credentials.push({
+      id: credential.id,
+      publicKey: Buffer.from(credential.publicKey).toString('base64url'),
+      counter: credential.counter,
+      transports: credential.transports || [],
+      deviceType: credentialDeviceType,
+      backedUp: credentialBackedUp,
+      createdAt: new Date().toISOString(),
+      label: label || 'Fingerprint'
+    });
+    saveWebAuthnCredentials(credData);
+
+    console.log(`WebAuthn credential registered: ${label || 'Fingerprint'} (${credential.id.substring(0, 16)}...)`);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('WebAuthn register error:', e.message);
+    res.status(500).json({ success: false, error: 'Registration failed' });
+  }
+});
+
+// Step 3: Get authentication options (public — shown on login page)
+app.post('/admin/auth/webauthn/authenticate-options', async (req, res) => {
+  try {
+    const credData = loadWebAuthnCredentials();
+    if (!credData.credentials.length) {
+      return res.json({ success: false, error: 'No credentials registered' });
+    }
+
+    const allowCredentials = credData.credentials.map(c => ({
+      id: c.id,
+      transports: c.transports || []
+    }));
+
+    const waConfig = getWebAuthnConfig(req);
+    const options = await generateAuthenticationOptions({
+      rpID: waConfig.rpId,
+      userVerification: 'required',
+      allowCredentials
+    });
+
+    const challengeId = crypto.randomBytes(16).toString('hex');
+    webauthnChallenges.set(challengeId, {
+      challenge: options.challenge,
+      expires: Date.now() + 60000
+    });
+
+    res.json({ success: true, options, challengeId });
+  } catch (e) {
+    console.error('WebAuthn authenticate-options error:', e.message);
+    res.status(500).json({ success: false, error: 'Failed to generate options' });
+  }
+});
+
+// Step 4: Verify authentication and issue session
+app.post('/admin/auth/webauthn/authenticate', async (req, res) => {
+  try {
+    const { challengeId, assertion } = req.body;
+    if (!challengeId || !assertion) {
+      return res.status(400).json({ success: false, error: 'Missing challengeId or assertion' });
+    }
+
+    const stored = webauthnChallenges.get(challengeId);
+    if (!stored || stored.expires < Date.now()) {
+      webauthnChallenges.delete(challengeId);
+      return res.status(400).json({ success: false, error: 'Challenge expired' });
+    }
+    webauthnChallenges.delete(challengeId);
+
+    const credData = loadWebAuthnCredentials();
+    const credential = credData.credentials.find(c => c.id === assertion.id);
+    if (!credential) {
+      return res.status(400).json({ success: false, error: 'Unknown credential' });
+    }
+
+    const waConfig = getWebAuthnConfig(req);
+    const verification = await verifyAuthenticationResponse({
+      response: assertion,
+      expectedChallenge: stored.challenge,
+      expectedOrigin: waConfig.origin,
+      expectedRPID: waConfig.rpId,
+      credential: {
+        id: credential.id,
+        publicKey: Buffer.from(credential.publicKey, 'base64url'),
+        counter: credential.counter,
+        transports: credential.transports || []
+      }
+    });
+
+    if (!verification.verified) {
+      return res.status(400).json({ success: false, error: 'Authentication failed' });
+    }
+
+    // Update counter
+    credential.counter = verification.authenticationInfo.newCounter;
+    saveWebAuthnCredentials(credData);
+
+    // Issue admin session (identical to X OAuth)
+    const payload = {
+      un: '4ormund',
+      av: 'https://unavatar.io/x/4ormund',
+      exp: Math.floor(Date.now() / 1000) + ADMIN_COOKIE_MAX_AGE_SEC
+    };
+    const cookieValue = signAdminSession(payload);
+    res.setHeader('Set-Cookie', [
+      `${ADMIN_COOKIE_NAME}=${cookieValue}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${ADMIN_COOKIE_MAX_AGE_SEC}`,
+      `${ADMIN_COOKIE_NAME}=; Path=/admin; HttpOnly; Secure; SameSite=Lax; Max-Age=0`
+    ]);
+
+    console.log('Admin WebAuthn login (4ormund)');
+    res.json({ success: true, redirect: '/analytics' });
+  } catch (e) {
+    console.error('WebAuthn authenticate error:', e.message);
+    res.status(500).json({ success: false, error: 'Authentication failed' });
   }
 });
 
@@ -1431,7 +1892,8 @@ app.post('/admin/auth/logout', (req, res) => {
 
 // Developer portal page
 app.get('/developers', (req, res) => {
-  if (!X_CLIENT_ID || !X_CLIENT_SECRET || !SESSION_SECRET) {
+  const { clientId, clientSecret } = getXCredentials(req);
+  if (!clientId || !clientSecret || !SESSION_SECRET) {
     return res.status(503).send('Developer portal not configured');
   }
   res.sendFile(path.join(__dirname, 'public', 'developers.html'));
@@ -1450,7 +1912,8 @@ app.get('/developers/api/session', (req, res) => {
 
 // Developer login via X OAuth
 app.get('/developers/auth/login', (req, res) => {
-  if (!X_CLIENT_ID) return res.status(503).send('X OAuth not configured');
+  const { clientId } = getXCredentials(req);
+  if (!clientId) return res.status(503).send('X OAuth not configured');
 
   const state = crypto.randomBytes(16).toString('hex');
   const codeVerifier = crypto.randomBytes(32).toString('base64url');
@@ -1459,12 +1922,11 @@ app.get('/developers/auth/login', (req, res) => {
   const redirect = req.query.redirect || null;
   oauthPendingFlows.set(state, { codeVerifier, flowType: 'developer_login', redirect, created: Date.now() });
 
-  // Redirect URI must be the registered callback on claw.tormund.io
-  const redirectUri = 'https://claw.tormund.io/admin/auth/callback';
+  const redirectUri = getDashboardUrl(req) + '/admin/auth/callback';
 
   const params = new URLSearchParams({
     response_type: 'code',
-    client_id: X_CLIENT_ID,
+    client_id: clientId,
     redirect_uri: redirectUri,
     scope: 'users.read tweet.read',
     state,
@@ -1478,7 +1940,7 @@ app.get('/developers/auth/login', (req, res) => {
 // Developer logout
 app.post('/developers/auth/logout', (req, res) => {
   res.setHeader('Set-Cookie',
-    `${DEV_COOKIE_NAME}=; Path=/; Domain=.tormund.io; HttpOnly; Secure; SameSite=Lax; Max-Age=0`
+    `${DEV_COOKIE_NAME}=; Path=/; Domain=.${getRootDomain(req)}; HttpOnly; Secure; SameSite=Lax; Max-Age=0`
   );
   res.json({ success: true });
 });
@@ -1571,8 +2033,8 @@ app.post('/developers/api/dapps', (req, res) => {
     }
   }
   const validScopes = Array.isArray(scopes) && scopes.length > 0
-    ? scopes.filter(s => OAUTH_SCOPES.includes(s))
-    : [...OAUTH_SCOPES]; // default to all scopes if none specified
+    ? normalizeScopes(scopes.filter(s => isValidScope(s)))
+    : [...OAUTH_SCOPES_GRANULAR]; // default to all granular scopes
 
   const clientId = 'dapp_' + crypto.randomBytes(12).toString('hex');
   const clientSecret = 'dappsec_' + crypto.randomBytes(24).toString('hex');
@@ -1651,14 +2113,7 @@ app.put('/developers/api/dapps/:clientId', (req, res) => {
     if (!Array.isArray(scopes)) {
       return res.status(400).json({ success: false, error: 'scopes must be an array' });
     }
-    const valid = scopes.filter(s => OAUTH_SCOPES.includes(s));
-    dapp.scopes = valid;
-  }
-  if (accessLevel !== undefined) {
-    if (!['read', 'read_write'].includes(accessLevel)) {
-      return res.status(400).json({ success: false, error: 'accessLevel must be "read" or "read_write"' });
-    }
-    dapp.accessLevel = accessLevel;
+    dapp.scopes = normalizeScopes(scopes.filter(s => isValidScope(s)));
   }
 
   dapp.updatedAt = new Date().toISOString();
@@ -1810,7 +2265,7 @@ app.post('/developers/api/dapps/:clientId/icon', (req, res) => {
     const filename = `icon.${imageType.ext}`;
     fs.writeFileSync(path.join(iconDir, filename), buffer);
 
-    const publicUrl = `https://claw.tormund.io/dapps/${clientId}/${filename}`;
+    const publicUrl = `${getDashboardUrl(req)}/dapps/${clientId}/${filename}`;
     dapp.iconUrl = publicUrl;
     dapp.updatedAt = new Date().toISOString();
     saveDapps(dapps);
@@ -2100,12 +2555,49 @@ app.delete('/admin/api/registration-keys/:label', (req, res) => {
 // Operators claim ownership of their agent by linking their X account.
 // Once linked, only this X account can approve OAuth consent requests for the agent.
 
+// Legacy flat scope list (kept for backward compat validation)
 const OAUTH_SCOPES = ['balance', 'swap', 'send', 'sign', 'messages', 'profile'];
+
+// Canonical scope list — messages has read/write granularity, others are simple
+const OAUTH_SCOPES_GRANULAR = [
+  'balance', 'profile', 'swap', 'send', 'sign', 'messages:read', 'messages:write'
+];
+
+// Legacy bare "messages" expands to both :read and :write
+const LEGACY_SCOPE_MAP = {
+  messages: ['messages:read', 'messages:write']
+};
+
+// Normalize scope array: expand legacy bare names to granular, filter invalid
+function normalizeScopes(scopes) {
+  const result = new Set();
+  for (const s of scopes) {
+    if (LEGACY_SCOPE_MAP[s]) LEGACY_SCOPE_MAP[s].forEach(gs => result.add(gs));
+    else if (OAUTH_SCOPES_GRANULAR.includes(s)) result.add(s);
+  }
+  return [...result];
+}
+
+// Check if granted scopes satisfy a required scope (handles legacy bare "messages")
+function hasScope(grantedScopes, requiredScope) {
+  if (grantedScopes.includes(requiredScope)) return true;
+  // Legacy fallback: bare "messages" implies both messages:read and messages:write
+  const base = requiredScope.split(':')[0];
+  return grantedScopes.includes(base);
+}
+
+// Check if a scope string is valid (granular or legacy)
+function isValidScope(s) {
+  return OAUTH_SCOPES_GRANULAR.includes(s) || OAUTH_SCOPES.includes(s);
+}
+
 const OAUTH_SCOPE_DESCRIPTIONS = {
   balance: 'View wallet balance',
-  swap: 'Swap tokens within your daily cap',
-  send: 'Send tokens within your daily cap',
-  sign: 'Sign messages on behalf of your agent',
+  swap: 'Token swaps within daily cap',
+  send: 'Token sends within daily cap',
+  sign: 'Message signing',
+  'messages:read': 'Read agent messages',
+  'messages:write': 'Send agent messages',
   messages: 'Read and send messages',
   profile: 'View agent profile'
 };
@@ -2123,9 +2615,9 @@ const oauthExpiredPage = () => `<!DOCTYPE html><html lang="en"><head><meta chars
   </head><body>
   <header class="oe-header"><img src="/clawnads-logo-white.svg" alt="Clawnads"></header>
   <div class="oe-body">
-    <svg width="120" height="66" viewBox="0 0 100 55" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-bottom:var(--space-4);"><path d="M31.2099 45.0527C31.3816 45.1109 31.3138 45.0772 31.455 45.1611C32.589 45.8338 33.9277 46.2766 35.1815 46.668C34.9152 47.0227 34.2144 47.7101 33.8407 48.1631C31.988 50.4053 31.1523 52.0517 30.078 54.6768C30.0466 54.7368 29.9425 54.8509 29.8944 54.9082C29.6623 55.008 29.5453 55.0327 29.3007 54.9521C26.7826 54.1202 26.2768 50.8331 27.1229 48.6533C27.8846 46.6925 29.4041 45.8487 31.2099 45.0527ZM68.4852 45.1162C69.0621 45.0313 70.4841 45.959 70.994 46.3555C73.2311 48.0924 73.9772 51.4654 72.1386 53.7686C71.8237 54.1626 70.946 54.9875 70.3876 54.9941C70.1555 54.9966 70.0611 54.9048 69.911 54.751C69.638 54.2115 69.4323 53.5146 69.1386 52.9385C67.8436 50.3981 66.7678 48.5855 64.6503 46.7012C65.9883 46.2882 67.3058 45.8796 68.4852 45.1162ZM75.0976 41.0518C77.6372 41.2724 79.9589 41.8337 81.8173 43.6602C84.0285 45.8334 84.4932 49.2289 82.1864 51.5244C81.7756 51.934 81.3041 52.3176 80.9091 51.668C80.7124 51.3342 80.2057 50.7078 79.9491 50.3447C77.9262 47.488 74.8661 44.6508 71.4413 43.6699C72.4779 43.2153 73.1779 42.6328 74.0526 41.916C74.4626 41.5805 74.6178 41.3382 75.0976 41.0518ZM24.953 41.1348C25.2018 41.3081 25.712 41.8073 25.994 42.043C26.8766 42.7798 27.5021 43.1421 28.5184 43.6533C25.1888 44.6816 22.494 46.9576 20.4198 49.7178C20.1465 50.0822 19.9759 50.3986 19.6708 50.7539L19.6093 50.8242C19.3237 51.0898 19.1644 51.66 18.7499 51.9531C18.4278 51.9673 18.1104 51.9103 17.8778 51.6797C14.6291 48.4648 16.6499 43.7235 20.4257 42.0674C21.7284 41.4963 22.1907 41.3268 23.6132 41.1611C24.0699 41.107 24.4952 41.1264 24.953 41.1348ZM50.412 21.7686C53.8394 21.7239 58.3896 22.4166 61.6933 23.4268C65.9905 24.9067 70.3972 27.0117 73.7499 30.1299C76.8457 33.0097 78.0987 34.494 74.744 37.8359C70.2383 42.3231 64.4548 44.3785 58.3495 45.5908C55.5323 46.1503 52.3726 46.1943 49.5321 46.1885C45.1317 46.1735 41.0227 45.7038 36.8075 44.4365C31.8682 42.951 25.0118 39.5832 23.1005 34.5C23.4202 32.8506 24.6728 31.4788 25.8983 30.3223C29.2819 27.1293 33.7394 24.8807 38.1278 23.4404C39.442 22.9808 40.9113 22.8445 42.2343 22.5049C45.0465 21.7828 47.5417 21.7667 50.412 21.7686ZM58.2714 36.7139C53.1801 33.6592 46.8197 33.6593 41.7284 36.7139C41.018 37.1401 40.7875 38.0621 41.2138 38.7725C41.6401 39.4825 42.5612 39.7122 43.2714 39.2861C47.4127 36.8014 52.5871 36.8013 56.7284 39.2861C57.4386 39.7122 58.3597 39.4825 58.786 38.7725C59.2122 38.0621 58.9817 37.1401 58.2714 36.7139ZM87.0839 0C92.2005 0.461954 97.6246 4.65656 99.1727 9.55762C99.4757 10.5174 100.012 12.7205 99.9999 13.7236C99.8876 22.8356 91.6694 29.0257 83.3222 30.3164C80.1773 30.8026 79.3214 31.1331 76.5575 29.6787C76.208 29.4223 75.9171 29.2185 75.747 28.8213C75.8109 28.4152 76.4329 28.1363 76.828 27.9307C78.3952 27.1126 79.3915 25.4821 80.5927 24.458C79.8025 23.6312 79.3988 22.8348 78.8427 21.8477C76.0729 16.926 76.379 9.33155 80.6288 5.25586C81.4663 7.83061 84.0478 12.8462 86.3554 14.2852C86.9364 14.1176 87.3281 12.3194 87.4335 11.7666C88.1696 7.90054 87.8807 3.83257 87.0839 0ZM12.5751 0.0224609C12.674 0.0188039 12.7036 0.0419007 12.8056 0.0742188C12.8109 0.105027 12.4873 2.15371 12.4237 2.41699C11.9339 4.44521 11.9777 13.3766 13.5809 14.2666C13.9333 14.0704 14.3942 13.5678 14.6747 13.2617C16.8563 10.8818 18.1966 8.25826 19.329 5.29004C20.1374 6.22699 21.0198 7.43298 21.5643 8.54297C24.0217 13.5521 22.9833 20.4614 19.1913 24.5205C20.1645 25.3207 20.9902 26.6263 22.1073 27.4258C22.6294 27.799 23.8926 28.3973 24.0468 28.7637C23.9779 29.0606 23.8152 29.1944 23.6112 29.4258C20.8948 31.2226 19.7045 30.7652 16.7216 30.3389C10.3594 29.4295 3.61264 25.3576 1.07411 19.2295C-2.55085 10.4783 3.42841 1.30598 12.5751 0.0224609ZM62.164 8.62793C65.1164 8.21829 67.8443 10.2775 68.2694 13.2363C68.6944 16.1954 66.6565 18.9439 63.7089 19.3867C60.7381 19.8328 57.9722 17.7685 57.5438 14.7861C57.1159 11.804 59.1885 9.04114 62.164 8.62793ZM36.1874 8.64844C39.1466 8.16434 41.9354 10.1844 42.4081 13.1543C42.8805 16.1242 40.8577 18.9139 37.8954 19.3779C34.9473 19.8393 32.1821 17.8218 31.7118 14.8662C31.2419 11.911 33.243 9.13068 36.1874 8.64844ZM37.0683 11.2412C35.6404 11.2416 34.4827 12.4037 34.4823 13.8359C34.4824 15.2683 35.6403 16.4303 37.0683 16.4307C38.4963 16.4305 39.655 15.2684 39.6552 13.8359C39.6548 12.4036 38.4962 11.2414 37.0683 11.2412ZM62.9306 11.2412C61.5023 11.2413 60.3447 12.4033 60.3446 13.8359C60.3448 15.2685 61.5024 16.4296 62.9306 16.4297C64.3588 16.4297 65.5164 15.2686 65.5165 13.8359C65.5165 12.4032 64.3589 11.2412 62.9306 11.2412Z" fill="white"/></svg>
+    <img src="/sad-crab.svg" alt="" width="120" height="66" style="margin-bottom:var(--space-4);">
     <div style="font-size:var(--text-xl);font-weight:700;margin-bottom:var(--space-4);">Session Expired</div>
-    <div style="font-size:var(--text-sm);color:var(--color-text-secondary);line-height:var(--leading-relaxed);max-width:360px;">This authorization session has expired or was already completed.<br>Please start a new session from the application.</div>
+    <div style="font-size:var(--text-sm);color:var(--color-text-secondary);line-height:var(--leading-relaxed);max-width:360px;">Start a new session from the app to continue.</div>
   </div>
   </body></html>`;
 
@@ -2141,7 +2633,7 @@ const oauthErrorPage = (title, message) => `<!DOCTYPE html><html lang="en"><head
   </style></head><body>
   <header class="oe-header"><img src="/clawnads-logo-white.svg" alt="Clawnads"></header>
   <div class="oe-body">
-    <svg width="120" height="66" viewBox="0 0 100 55" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-bottom:var(--space-4);opacity:0.35;"><path d="M31.2099 45.0527C31.3816 45.1109 31.3138 45.0772 31.455 45.1611C32.589 45.8338 33.9277 46.2766 35.1815 46.668C34.9152 47.0227 34.2144 47.7101 33.8407 48.1631C31.988 50.4053 31.1523 52.0517 30.078 54.6768C30.0466 54.7368 29.9425 54.8509 29.8944 54.9082C29.6623 55.008 29.5453 55.0327 29.3007 54.9521C26.7826 54.1202 26.2768 50.8331 27.1229 48.6533C27.8846 46.6925 29.4041 45.8487 31.2099 45.0527ZM68.4852 45.1162C69.0621 45.0313 70.4841 45.959 70.994 46.3555C73.2311 48.0924 73.9772 51.4654 72.1386 53.7686C71.8237 54.1626 70.946 54.9875 70.3876 54.9941C70.1555 54.9966 70.0611 54.9048 69.911 54.751C69.638 54.2115 69.4323 53.5146 69.1386 52.9385C67.8436 50.3981 66.7678 48.5855 64.6503 46.7012C65.9883 46.2882 67.3058 45.8796 68.4852 45.1162ZM75.0976 41.0518C77.6372 41.2724 79.9589 41.8337 81.8173 43.6602C84.0285 45.8334 84.4932 49.2289 82.1864 51.5244C81.7756 51.934 81.3041 52.3176 80.9091 51.668C80.7124 51.3342 80.2057 50.7078 79.9491 50.3447C77.9262 47.488 74.8661 44.6508 71.4413 43.6699C72.4779 43.2153 73.1779 42.6328 74.0526 41.916C74.4626 41.5805 74.6178 41.3382 75.0976 41.0518ZM24.953 41.1348C25.2018 41.3081 25.712 41.8073 25.994 42.043C26.8766 42.7798 27.5021 43.1421 28.5184 43.6533C25.1888 44.6816 22.494 46.9576 20.4198 49.7178C20.1465 50.0822 19.9759 50.3986 19.6708 50.7539L19.6093 50.8242C19.3237 51.0898 19.1644 51.66 18.7499 51.9531C18.4278 51.9673 18.1104 51.9103 17.8778 51.6797C14.6291 48.4648 16.6499 43.7235 20.4257 42.0674C21.7284 41.4963 22.1907 41.3268 23.6132 41.1611C24.0699 41.107 24.4952 41.1264 24.953 41.1348ZM50.412 21.7686C53.8394 21.7239 58.3896 22.4166 61.6933 23.4268C65.9905 24.9067 70.3972 27.0117 73.7499 30.1299C76.8457 33.0097 78.0987 34.494 74.744 37.8359C70.2383 42.3231 64.4548 44.3785 58.3495 45.5908C55.5323 46.1503 52.3726 46.1943 49.5321 46.1885C45.1317 46.1735 41.0227 45.7038 36.8075 44.4365C31.8682 42.951 25.0118 39.5832 23.1005 34.5C23.4202 32.8506 24.6728 31.4788 25.8983 30.3223C29.2819 27.1293 33.7394 24.8807 38.1278 23.4404C39.442 22.9808 40.9113 22.8445 42.2343 22.5049C45.0465 21.7828 47.5417 21.7667 50.412 21.7686ZM58.2714 36.7139C53.1801 33.6592 46.8197 33.6593 41.7284 36.7139C41.018 37.1401 40.7875 38.0621 41.2138 38.7725C41.6401 39.4825 42.5612 39.7122 43.2714 39.2861C47.4127 36.8014 52.5871 36.8013 56.7284 39.2861C57.4386 39.7122 58.3597 39.4825 58.786 38.7725C59.2122 38.0621 58.9817 37.1401 58.2714 36.7139ZM87.0839 0C92.2005 0.461954 97.6246 4.65656 99.1727 9.55762C99.4757 10.5174 100.012 12.7205 99.9999 13.7236C99.8876 22.8356 91.6694 29.0257 83.3222 30.3164C80.1773 30.8026 79.3214 31.1331 76.5575 29.6787C76.208 29.4223 75.9171 29.2185 75.747 28.8213C75.8109 28.4152 76.4329 28.1363 76.828 27.9307C78.3952 27.1126 79.3915 25.4821 80.5927 24.458C79.8025 23.6312 79.3988 22.8348 78.8427 21.8477C76.0729 16.926 76.379 9.33155 80.6288 5.25586C81.4663 7.83061 84.0478 12.8462 86.3554 14.2852C86.9364 14.1176 87.3281 12.3194 87.4335 11.7666C88.1696 7.90054 87.8807 3.83257 87.0839 0ZM12.5751 0.0224609C12.674 0.0188039 12.7036 0.0419007 12.8056 0.0742188C12.8109 0.105027 12.4873 2.15371 12.4237 2.41699C11.9339 4.44521 11.9777 13.3766 13.5809 14.2666C13.9333 14.0704 14.3942 13.5678 14.6747 13.2617C16.8563 10.8818 18.1966 8.25826 19.329 5.29004C20.1374 6.22699 21.0198 7.43298 21.5643 8.54297C24.0217 13.5521 22.9833 20.4614 19.1913 24.5205C20.1645 25.3207 20.9902 26.6263 22.1073 27.4258C22.6294 27.799 23.8926 28.3973 24.0468 28.7637C23.9779 29.0606 23.8152 29.1944 23.6112 29.4258C20.8948 31.2226 19.7045 30.7652 16.7216 30.3389C10.3594 29.4295 3.61264 25.3576 1.07411 19.2295C-2.55085 10.4783 3.42841 1.30598 12.5751 0.0224609ZM62.164 8.62793C65.1164 8.21829 67.8443 10.2775 68.2694 13.2363C68.6944 16.1954 66.6565 18.9439 63.7089 19.3867C60.7381 19.8328 57.9722 17.7685 57.5438 14.7861C57.1159 11.804 59.1885 9.04114 62.164 8.62793ZM36.1874 8.64844C39.1466 8.16434 41.9354 10.1844 42.4081 13.1543C42.8805 16.1242 40.8577 18.9139 37.8954 19.3779C34.9473 19.8393 32.1821 17.8218 31.7118 14.8662C31.2419 11.911 33.243 9.13068 36.1874 8.64844ZM37.0683 11.2412C35.6404 11.2416 34.4827 12.4037 34.4823 13.8359C34.4824 15.2683 35.6403 16.4303 37.0683 16.4307C38.4963 16.4305 39.655 15.2684 39.6552 13.8359C39.6548 12.4036 38.4962 11.2414 37.0683 11.2412ZM62.9306 11.2412C61.5023 11.2413 60.3447 12.4033 60.3446 13.8359C60.3448 15.2685 61.5024 16.4296 62.9306 16.4297C64.3588 16.4297 65.5164 15.2686 65.5165 13.8359C65.5165 12.4032 64.3589 11.2412 62.9306 11.2412Z" fill="white"/></svg>
+    <img src="/sad-crab.svg" alt="" width="120" height="66" style="margin-bottom:var(--space-4);">
     <div style="font-size:var(--text-xl);font-weight:700;margin-bottom:var(--space-4);">${title}</div>
     <div style="font-size:var(--text-sm);color:var(--color-text-secondary);line-height:var(--leading-relaxed);max-width:360px;">${message}</div>
   </div></body></html>`;
@@ -2200,7 +2692,8 @@ app.post('/agents/:name/auth/claim', authenticateAgent, (req, res) => {
 
 // Landing page before X OAuth — requires valid claim token
 app.get('/agents/:name/auth/login', (req, res) => {
-  if (!X_CLIENT_ID) return res.status(503).send('X OAuth not configured');
+  const { clientId } = getXCredentials(req);
+  if (!clientId) return res.status(503).send('X OAuth not configured');
 
   const { name } = req.params;
   const { claim } = req.query;
@@ -2220,7 +2713,7 @@ app.get('/agents/:name/auth/login', (req, res) => {
     </head><body>
     <header class="ce-header"><img src="/clawnads-logo-white.svg" alt="Clawnads"></header>
     <div class="ce-body">
-      <svg width="120" height="66" viewBox="0 0 100 55" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-bottom:var(--space-4);"><path d="M31.2099 45.0527C31.3816 45.1109 31.3138 45.0772 31.455 45.1611C32.589 45.8338 33.9277 46.2766 35.1815 46.668C34.9152 47.0227 34.2144 47.7101 33.8407 48.1631C31.988 50.4053 31.1523 52.0517 30.078 54.6768C30.0466 54.7368 29.9425 54.8509 29.8944 54.9082C29.6623 55.008 29.5453 55.0327 29.3007 54.9521C26.7826 54.1202 26.2768 50.8331 27.1229 48.6533C27.8846 46.6925 29.4041 45.8487 31.2099 45.0527ZM68.4852 45.1162C69.0621 45.0313 70.4841 45.959 70.994 46.3555C73.2311 48.0924 73.9772 51.4654 72.1386 53.7686C71.8237 54.1626 70.946 54.9875 70.3876 54.9941C70.1555 54.9966 70.0611 54.9048 69.911 54.751C69.638 54.2115 69.4323 53.5146 69.1386 52.9385C67.8436 50.3981 66.7678 48.5855 64.6503 46.7012C65.9883 46.2882 67.3058 45.8796 68.4852 45.1162ZM75.0976 41.0518C77.6372 41.2724 79.9589 41.8337 81.8173 43.6602C84.0285 45.8334 84.4932 49.2289 82.1864 51.5244C81.7756 51.934 81.3041 52.3176 80.9091 51.668C80.7124 51.3342 80.2057 50.7078 79.9491 50.3447C77.9262 47.488 74.8661 44.6508 71.4413 43.6699C72.4779 43.2153 73.1779 42.6328 74.0526 41.916C74.4626 41.5805 74.6178 41.3382 75.0976 41.0518ZM24.953 41.1348C25.2018 41.3081 25.712 41.8073 25.994 42.043C26.8766 42.7798 27.5021 43.1421 28.5184 43.6533C25.1888 44.6816 22.494 46.9576 20.4198 49.7178C20.1465 50.0822 19.9759 50.3986 19.6708 50.7539L19.6093 50.8242C19.3237 51.0898 19.1644 51.66 18.7499 51.9531C18.4278 51.9673 18.1104 51.9103 17.8778 51.6797C14.6291 48.4648 16.6499 43.7235 20.4257 42.0674C21.7284 41.4963 22.1907 41.3268 23.6132 41.1611C24.0699 41.107 24.4952 41.1264 24.953 41.1348ZM50.412 21.7686C53.8394 21.7239 58.3896 22.4166 61.6933 23.4268C65.9905 24.9067 70.3972 27.0117 73.7499 30.1299C76.8457 33.0097 78.0987 34.494 74.744 37.8359C70.2383 42.3231 64.4548 44.3785 58.3495 45.5908C55.5323 46.1503 52.3726 46.1943 49.5321 46.1885C45.1317 46.1735 41.0227 45.7038 36.8075 44.4365C31.8682 42.951 25.0118 39.5832 23.1005 34.5C23.4202 32.8506 24.6728 31.4788 25.8983 30.3223C29.2819 27.1293 33.7394 24.8807 38.1278 23.4404C39.442 22.9808 40.9113 22.8445 42.2343 22.5049C45.0465 21.7828 47.5417 21.7667 50.412 21.7686ZM58.2714 36.7139C53.1801 33.6592 46.8197 33.6593 41.7284 36.7139C41.018 37.1401 40.7875 38.0621 41.2138 38.7725C41.6401 39.4825 42.5612 39.7122 43.2714 39.2861C47.4127 36.8014 52.5871 36.8013 56.7284 39.2861C57.4386 39.7122 58.3597 39.4825 58.786 38.7725C59.2122 38.0621 58.9817 37.1401 58.2714 36.7139ZM87.0839 0C92.2005 0.461954 97.6246 4.65656 99.1727 9.55762C99.4757 10.5174 100.012 12.7205 99.9999 13.7236C99.8876 22.8356 91.6694 29.0257 83.3222 30.3164C80.1773 30.8026 79.3214 31.1331 76.5575 29.6787C76.208 29.4223 75.9171 29.2185 75.747 28.8213C75.8109 28.4152 76.4329 28.1363 76.828 27.9307C78.3952 27.1126 79.3915 25.4821 80.5927 24.458C79.8025 23.6312 79.3988 22.8348 78.8427 21.8477C76.0729 16.926 76.379 9.33155 80.6288 5.25586C81.4663 7.83061 84.0478 12.8462 86.3554 14.2852C86.9364 14.1176 87.3281 12.3194 87.4335 11.7666C88.1696 7.90054 87.8807 3.83257 87.0839 0ZM12.5751 0.0224609C12.674 0.0188039 12.7036 0.0419007 12.8056 0.0742188C12.8109 0.105027 12.4873 2.15371 12.4237 2.41699C11.9339 4.44521 11.9777 13.3766 13.5809 14.2666C13.9333 14.0704 14.3942 13.5678 14.6747 13.2617C16.8563 10.8818 18.1966 8.25826 19.329 5.29004C20.1374 6.22699 21.0198 7.43298 21.5643 8.54297C24.0217 13.5521 22.9833 20.4614 19.1913 24.5205C20.1645 25.3207 20.9902 26.6263 22.1073 27.4258C22.6294 27.799 23.8926 28.3973 24.0468 28.7637C23.9779 29.0606 23.8152 29.1944 23.6112 29.4258C20.8948 31.2226 19.7045 30.7652 16.7216 30.3389C10.3594 29.4295 3.61264 25.3576 1.07411 19.2295C-2.55085 10.4783 3.42841 1.30598 12.5751 0.0224609ZM62.164 8.62793C65.1164 8.21829 67.8443 10.2775 68.2694 13.2363C68.6944 16.1954 66.6565 18.9439 63.7089 19.3867C60.7381 19.8328 57.9722 17.7685 57.5438 14.7861C57.1159 11.804 59.1885 9.04114 62.164 8.62793ZM36.1874 8.64844C39.1466 8.16434 41.9354 10.1844 42.4081 13.1543C42.8805 16.1242 40.8577 18.9139 37.8954 19.3779C34.9473 19.8393 32.1821 17.8218 31.7118 14.8662C31.2419 11.911 33.243 9.13068 36.1874 8.64844ZM37.0683 11.2412C35.6404 11.2416 34.4827 12.4037 34.4823 13.8359C34.4824 15.2683 35.6403 16.4303 37.0683 16.4307C38.4963 16.4305 39.655 15.2684 39.6552 13.8359C39.6548 12.4036 38.4962 11.2414 37.0683 11.2412ZM62.9306 11.2412C61.5023 11.2413 60.3447 12.4033 60.3446 13.8359C60.3448 15.2685 61.5024 16.4296 62.9306 16.4297C64.3588 16.4297 65.5164 15.2686 65.5165 13.8359C65.5165 12.4032 64.3589 11.2412 62.9306 11.2412Z" fill="white"/></svg>
+      <img src="/sad-crab.svg" alt="" width="120" height="66" style="margin-bottom:var(--space-4);">
       <div style="font-size:var(--text-xl);font-weight:700;margin-bottom:var(--space-4);">${title}</div>
       <div style="font-size:var(--text-sm);color:var(--color-text-secondary);line-height:var(--leading-relaxed);max-width:360px;">${body}</div>
     </div>
@@ -2249,8 +2742,8 @@ app.get('/agents/:name/auth/login', (req, res) => {
   const avatarUrl = agent.avatarUrl || null;
   const agentInitial = name[0].toUpperCase();
   const description = agent.profile?.description || null;
-  const maxTrade = agent.tradingConfig?.maxPerTradeMON || '500';
-  const dailyCap = agent.tradingConfig?.dailyCapMON || '2500';
+  const maxTrade = agent.tradingConfig?.maxPerTradeMON || '1000';
+  const dailyCap = agent.tradingConfig?.dailyCapMON || '10000';
 
   // Avatar HTML — use actual image if uploaded, fallback to initial
   const avatarHtml = avatarUrl
@@ -2348,7 +2841,8 @@ app.get('/agents/:name/auth/login', (req, res) => {
 // Uses /admin/auth/callback — the only callback URL registered in the X Developer Portal.
 // The flowType in the state differentiates admin login vs owner linking vs consent auth.
 app.get('/agents/:name/auth/x-redirect', (req, res) => {
-  if (!X_CLIENT_ID) return res.status(503).send('X OAuth not configured');
+  const { clientId } = getXCredentials(req);
+  if (!clientId) return res.status(503).send('X OAuth not configured');
 
   const { name } = req.params;
   const { claim } = req.query;
@@ -2374,7 +2868,7 @@ app.get('/agents/:name/auth/x-redirect', (req, res) => {
 
   const params = new URLSearchParams({
     response_type: 'code',
-    client_id: X_CLIENT_ID,
+    client_id: clientId,
     redirect_uri: redirectUri,
     scope: 'users.read tweet.read',
     state: state,
@@ -2434,15 +2928,16 @@ app.post('/admin/dapps', authenticateAdmin, (req, res) => {
     return res.status(400).json({ success: false, error: 'scopes array is required' });
   }
 
-  // Validate scopes
-  const invalidScopes = scopes.filter(s => !OAUTH_SCOPES.includes(s));
+  // Validate scopes (accept both legacy and granular formats)
+  const invalidScopes = scopes.filter(s => !isValidScope(s));
   if (invalidScopes.length > 0) {
     return res.status(400).json({
       success: false,
       error: `Invalid scopes: ${invalidScopes.join(', ')}`,
-      validScopes: OAUTH_SCOPES
+      validScopes: OAUTH_SCOPES_GRANULAR
     });
   }
+  const normalizedScopes = normalizeScopes(scopes);
 
   const clientId = 'dapp_' + crypto.randomBytes(12).toString('hex');
   const clientSecret = 'dappsec_' + crypto.randomBytes(24).toString('hex');
@@ -2456,7 +2951,7 @@ app.post('/admin/dapps', authenticateAdmin, (req, res) => {
     description: description || null,
     iconUrl: iconUrl || null,
     redirectUris,
-    scopes,
+    scopes: normalizedScopes,
     registeredAt: new Date().toISOString(),
     active: true
   };
@@ -2524,8 +3019,7 @@ app.get('/oauth/dapp/:clientId', (req, res) => {
     description: dapp.description || null,
     iconUrl: dapp.iconUrl || null,
     scopes: dapp.scopes,
-    accessLevel: dapp.accessLevel || 'read_write',
-    connectUrl: `https://tormund.io/oauth/connect/${req.params.clientId}`,
+    connectUrl: `${getRootUrl(req)}/oauth/connect/${req.params.clientId}`,
     scopeDescriptions: dapp.scopes.reduce((acc, s) => {
       acc[s] = OAUTH_SCOPE_DESCRIPTIONS[s] || s;
       return acc;
@@ -2535,7 +3029,7 @@ app.get('/oauth/dapp/:clientId', (req, res) => {
 
 // OAuth server metadata (RFC 8414)
 app.get('/.well-known/oauth-authorization-server', (req, res) => {
-  const issuer = 'https://tormund.io';
+  const issuer = getRootUrl(req);
 
   res.json({
     issuer,
@@ -2543,7 +3037,7 @@ app.get('/.well-known/oauth-authorization-server', (req, res) => {
     token_endpoint: `${issuer}/oauth/token`,
     revocation_endpoint: `${issuer}/oauth/revoke`,
     userinfo_endpoint: `${issuer}/oauth/userinfo`,
-    scopes_supported: OAUTH_SCOPES,
+    scopes_supported: OAUTH_SCOPES_GRANULAR,
     response_types_supported: ['code'],
     grant_types_supported: ['authorization_code'],
     code_challenge_methods_supported: ['S256'],
@@ -2564,10 +3058,10 @@ app.get('/oauth/connect/:clientId', (req, res) => {
     return res.status(404).send(oauthErrorPage('App Not Found', 'This application does not exist or has been deactivated.'));
   }
   if (!dapp.redirectUris || dapp.redirectUris.length === 0) {
-    return res.status(400).send(oauthErrorPage('App Not Configured', 'This application has no redirect URIs configured. The developer needs to add one in the Developer Console.'));
+    return res.status(400).send(oauthErrorPage('App Not Configured', 'This application has no redirect URIs configured.'));
   }
   if (!dapp.scopes || dapp.scopes.length === 0) {
-    return res.status(400).send(oauthErrorPage('App Not Configured', 'This application has no scopes configured. The developer needs to add scopes in the Developer Console.'));
+    return res.status(400).send(oauthErrorPage('App Not Configured', 'This application has no scopes configured.'));
   }
 
   // Generate PKCE server-side
@@ -2638,12 +3132,14 @@ app.get('/oauth/authorize', (req, res) => {
     return res.status(400).json({ error: 'redirect_uri not registered for this client' });
   }
 
-  // Validate requested scopes
-  const requestedScopes = scope ? scope.split(/[ +]/).filter(Boolean) : [];
-  if (requestedScopes.length === 0) {
+  // Validate requested scopes (normalize to granular format)
+  const rawScopes = scope ? scope.split(/[ +]/).filter(Boolean) : [];
+  if (rawScopes.length === 0) {
     return res.status(400).json({ error: 'At least one scope is required' });
   }
-  const invalidScopes = requestedScopes.filter(s => !dapp.scopes.includes(s));
+  const requestedScopes = normalizeScopes(rawScopes);
+  const dappNormalized = normalizeScopes(dapp.scopes);
+  const invalidScopes = requestedScopes.filter(s => !dappNormalized.includes(s));
   if (invalidScopes.length > 0) {
     return res.status(400).json({
       error: `Scopes not registered for this dApp: ${invalidScopes.join(', ')}`,
@@ -2722,11 +3218,12 @@ app.get('/oauth/consent/details', (req, res) => {
     } : null,
     scopes: flowData.scopes.map(s => ({
       key: s,
-      description: OAUTH_SCOPE_DESCRIPTIONS[s] || s
+      description: OAUTH_SCOPE_DESCRIPTIONS[s] || s,
+      access: s.endsWith(':write') ? 'write' : (s.endsWith(':read') ? 'read' : (['balance','profile'].includes(s) ? 'ro' : 'action'))
     })),
     limits: flowData.agentName ? {
-      maxPerTradeMON: agent?.tradingConfig?.maxPerTradeMON || '500',
-      dailyCapMON: agent?.tradingConfig?.dailyCapMON || '2500'
+      maxPerTradeMON: agent?.tradingConfig?.maxPerTradeMON || '1000',
+      dailyCapMON: agent?.tradingConfig?.dailyCapMON || '10000'
     } : null,
     operatorAuthenticated: !!flowData.operatorXId,
     operatorUsername: flowData.operatorXUsername || null,
@@ -2742,8 +3239,8 @@ app.get('/oauth/consent/details', (req, res) => {
         name,
         wallet: a.wallet?.address || null,
         avatarUrl: a.avatarUrl || null,
-        maxPerTradeMON: a.tradingConfig?.maxPerTradeMON || '500',
-        dailyCapMON: a.tradingConfig?.dailyCapMON || '2500'
+        maxPerTradeMON: a.tradingConfig?.maxPerTradeMON || '1000',
+        dailyCapMON: a.tradingConfig?.dailyCapMON || '10000'
       }));
   }
 
@@ -2752,7 +3249,8 @@ app.get('/oauth/consent/details', (req, res) => {
 
 // Operator must log in with X before approving consent
 app.get('/oauth/consent/auth', (req, res) => {
-  if (!X_CLIENT_ID) return res.status(503).send('X OAuth not configured');
+  const { clientId } = getXCredentials(req);
+  if (!clientId) return res.status(503).send('X OAuth not configured');
 
   const { flow } = req.query;
   if (!flow) return res.status(400).send('Missing flow parameter');
@@ -2773,12 +3271,11 @@ app.get('/oauth/consent/auth', (req, res) => {
     created: Date.now()
   });
 
-  // Use /admin/auth/callback — must match the callback URL registered in X Developer Portal
-  const redirectUri = 'https://claw.tormund.io/admin/auth/callback';
+  const redirectUri = getDashboardUrl(req) + '/admin/auth/callback';
 
   const params = new URLSearchParams({
     response_type: 'code',
-    client_id: X_CLIENT_ID,
+    client_id: clientId,
     redirect_uri: redirectUri,
     scope: 'users.read tweet.read',
     state: state,
@@ -2876,22 +3373,40 @@ app.post('/oauth/consent/approve', express.urlencoded({ extended: false }), (req
 
   console.log(`OAuth consent approved: ${flowData.agentName} granted [${flowData.scopes.join(', ')}] to ${flowData.clientId}`);
 
-  // For server-initiated flows, show a success page on tormund.io
-  // The dApp still gets the auth code via background redirect (invisible to operator)
-  if (flowData.serverInitiated) {
-    const agentNameSafe = (flowData.agentName || '').replace(/</g, '&lt;');
-    const dappNameSafe = (dappName || '').replace(/</g, '&lt;');
-    const SCOPE_ACCESS = { balance: 'ro', swap: 'rw', send: 'rw', sign: 'rw', messages: 'rw', profile: 'ro' };
-    const scopeListHtml = flowData.scopes.map(s => {
-      const desc = OAUTH_SCOPE_DESCRIPTIONS[s] || s;
-      const access = SCOPE_ACCESS[s] || 'ro';
-      const badge = access === 'rw'
-        ? '<span style="font-size:10px;font-weight:600;padding:1px 6px;border-radius:99px;background:rgba(34,197,94,0.1);color:#22c55e;border:1px solid rgba(34,197,94,0.2);white-space:nowrap;">Read &amp; write</span>'
-        : '<span style="font-size:10px;font-weight:600;padding:1px 6px;border-radius:99px;background:rgba(124,92,255,0.1);color:#7c5cff;border:1px solid rgba(124,92,255,0.2);white-space:nowrap;">Read only</span>';
-      return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;"><span style="font-size:13px;color:rgba(255,255,255,0.6);flex:1;">${desc.replace(/</g, '&lt;')}</span>${badge}</div>`;
-    }).join('');
+  // Always show success page on Clawnads — auth never leaves the platform
+  // The dApp gets the auth code via hidden iframe in the background
+  const agentNameSafe = (flowData.agentName || '').replace(/</g, '&lt;');
+  const dappNameSafe = (dappName || '').replace(/</g, '&lt;');
+  // Group scopes for display: messages has read/write, others are simple
+  const readOnlyScopes = ['balance', 'profile'];
+  const actionScopes = ['swap', 'send', 'sign'];
+  const scopeGroups = {};
+  for (const s of flowData.scopes) {
+    const base = s.split(':')[0];
+    if (!scopeGroups[base]) scopeGroups[base] = [];
+    scopeGroups[base].push(s);
+  }
+  const badgeStyle = 'font-size:10px;font-weight:600;padding:1px 6px;border-radius:99px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.4);border:1px solid rgba(255,255,255,0.1);white-space:nowrap;';
+  const badgeRO = `<span style="${badgeStyle}">Read only</span>`;
+  const badgeRW = `<span style="${badgeStyle}">Read &amp; write</span>`;
+  const badgeW = `<span style="${badgeStyle}">Write only</span>`;
+  const badgeR = badgeRO;
+  const scopeListHtml = Object.entries(scopeGroups).map(([base, scopes]) => {
+    let badge;
+    if (readOnlyScopes.includes(base)) badge = badgeRO;
+    else if (actionScopes.includes(base)) badge = ''; // no badge needed for actions
+    else if (base === 'messages') {
+      const hasRead = scopes.some(s => s.endsWith(':read'));
+      const hasWrite = scopes.some(s => s.endsWith(':write'));
+      if (hasRead && hasWrite) badge = badgeRW;
+      else if (hasRead) badge = badgeR;
+      else badge = badgeW;
+    } else badge = '';
+    const desc = (OAUTH_SCOPE_DESCRIPTIONS[scopes[0]] || OAUTH_SCOPE_DESCRIPTIONS[base] || base).replace(/</g, '&lt;');
+    return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;"><span style="font-size:13px;color:rgba(255,255,255,0.6);flex:1;">${desc}</span>${badge}</div>`;
+  }).join('');
 
-    res.send(`<!DOCTYPE html>
+  res.send(`<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Connected — Clawnads</title>
@@ -2923,16 +3438,12 @@ body{color:var(--color-text-primary);font-family:var(--font-sans);display:flex;f
     <div style="font-size:var(--text-sm);color:var(--color-text-muted);line-height:var(--leading-relaxed);margin-bottom:var(--space-8);">
       You can close this page.
     </div>
-    <a href="/operator" style="font-size:var(--text-xs);color:var(--color-text-muted);text-decoration:none;font-family:var(--font-sans);transition:color 0.15s;">Manage permissions</a>
+    <a href="/operator" target="_blank" style="display:inline-flex;align-items:center;gap:4px;font-size:var(--text-xs);color:var(--color-text-muted);text-decoration:none;font-family:var(--font-sans);transition:color 0.15s;" onmouseover="this.style.color='var(--color-text-secondary)'" onmouseout="this.style.color='var(--color-text-muted)'">Manage permissions<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 1.5H2a.5.5 0 00-.5.5v8a.5.5 0 00.5.5h8a.5.5 0 00.5-.5V7.5"/><path d="M7 1.5h3.5V5"/><path d="M5.5 6.5L10.5 1.5"/></svg></a>
   </div>
 </div>
 <!-- Deliver auth code to dApp callback in background -->
 <iframe src="${dappRedirect.replace(/"/g, '&quot;')}" style="display:none;" sandbox="allow-scripts allow-same-origin"></iframe>
 </body></html>`);
-  } else {
-    // Standard OAuth flow: redirect directly to dApp callback with auth code
-    res.redirect(dappRedirect);
-  }
 });
 
 // Deny consent
@@ -2956,14 +3467,8 @@ app.post('/oauth/consent/deny', express.urlencoded({ extended: false }), (req, r
   const dapps = loadDapps();
   const dapp = dapps[flowData.clientId] || {};
   const dappName = dapp.name || flowData.clientId;
-  // Retry URL: for server-initiated flows, point back to /oauth/connect; otherwise use dApp origin
-  let retryUrl = '';
-  if (flowData.serverInitiated) {
-    retryUrl = `https://tormund.io/oauth/connect/${flowData.clientId}`;
-  } else {
-    const redirectUri = flowData.redirectUri || '';
-    retryUrl = redirectUri ? new URL(redirectUri).origin : '';
-  }
+  // Retry URL: always point back to /oauth/connect — auth stays on Clawnads, never redirects to dApp
+  const retryUrl = `${getRootUrl(req)}/oauth/connect/${flowData.clientId}`;
 
   res.send(`<!DOCTYPE html>
 <html lang="en"><head>
@@ -2985,13 +3490,11 @@ body{color:var(--color-text-primary);font-family:var(--font-sans);display:flex;f
 <header class="oc-header"><img src="/clawnads-logo-white.svg" alt="Clawnads"></header>
 <div class="oc-body">
   <div style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:var(--space-8) 0;max-width:400px;">
-    <svg width="80" height="44" viewBox="0 0 100 55" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-bottom:var(--space-6);opacity:0.35;">
-      <path d="M31.2099 45.0527C31.3816 45.1109 31.3138 45.0772 31.455 45.1611C32.589 45.8338 33.9277 46.2766 35.1815 46.668C34.9152 47.0227 34.2144 47.7101 33.8407 48.1631C31.988 50.4053 31.1523 52.0517 30.078 54.6768C30.0466 54.7368 29.9425 54.8509 29.8944 54.9082C29.6623 55.008 29.5453 55.0327 29.3007 54.9521C26.7826 54.1202 26.2768 50.8331 27.1229 48.6533C27.8846 46.6925 29.4041 45.8487 31.2099 45.0527ZM68.4852 45.1162C69.0621 45.0313 70.4841 45.959 70.994 46.3555C73.2311 48.0924 73.9772 51.4654 72.1386 53.7686C71.8237 54.1626 70.946 54.9875 70.3876 54.9941C70.1555 54.9966 70.0611 54.9048 69.911 54.751C69.638 54.2115 69.4323 53.5146 69.1386 52.9385C67.8436 50.3981 66.7678 48.5855 64.6503 46.7012C65.9883 46.2882 67.3058 45.8796 68.4852 45.1162ZM75.0976 41.0518C77.6372 41.2724 79.9589 41.8337 81.8173 43.6602C84.0285 45.8334 84.4932 49.2289 82.1864 51.5244C81.7756 51.934 81.3041 52.3176 80.9091 51.668C80.7124 51.3342 80.2057 50.7078 79.9491 50.3447C77.9262 47.488 74.8661 44.6508 71.4413 43.6699C72.4779 43.2153 73.1779 42.6328 74.0526 41.916C74.4626 41.5805 74.6178 41.3382 75.0976 41.0518ZM24.953 41.1348C25.2018 41.3081 25.712 41.8073 25.994 42.043C26.8766 42.7798 27.5021 43.1421 28.5184 43.6533C25.1888 44.6816 22.494 46.9576 20.4198 49.7178C20.1465 50.0822 19.9759 50.3986 19.6708 50.7539L19.6093 50.8242C19.3237 51.0898 19.1644 51.66 18.7499 51.9531C18.4278 51.9673 18.1104 51.9103 17.8778 51.6797C14.6291 48.4648 16.6499 43.7235 20.4257 42.0674C21.7284 41.4963 22.1907 41.3268 23.6132 41.1611C24.0699 41.107 24.4952 41.1264 24.953 41.1348ZM50.412 21.7686C53.8394 21.7239 58.3896 22.4166 61.6933 23.4268C65.9905 24.9067 70.3972 27.0117 73.7499 30.1299C76.8457 33.0097 78.0987 34.494 74.744 37.8359C70.2383 42.3231 64.4548 44.3785 58.3495 45.5908C55.5323 46.1503 52.3726 46.1943 49.5321 46.1885C45.1317 46.1735 41.0227 45.7038 36.8075 44.4365C31.8682 42.951 25.0118 39.5832 23.1005 34.5C23.4202 32.8506 24.6728 31.4788 25.8983 30.3223C29.2819 27.1293 33.7394 24.8807 38.1278 23.4404C39.442 22.9808 40.9113 22.8445 42.2343 22.5049C45.0465 21.7828 47.5417 21.7667 50.412 21.7686ZM58.2714 36.7139C53.1801 33.6592 46.8197 33.6593 41.7284 36.7139C41.018 37.1401 40.7875 38.0621 41.2138 38.7725C41.6401 39.4825 42.5612 39.7122 43.2714 39.2861C47.4127 36.8014 52.5871 36.8013 56.7284 39.2861C57.4386 39.7122 58.3597 39.4825 58.786 38.7725C59.2122 38.0621 58.9817 37.1401 58.2714 36.7139ZM87.0839 0C92.2005 0.461954 97.6246 4.65656 99.1727 9.55762C99.4757 10.5174 100.012 12.7205 99.9999 13.7236C99.8876 22.8356 91.6694 29.0257 83.3222 30.3164C80.1773 30.8026 79.3214 31.1331 76.5575 29.6787C76.208 29.4223 75.9171 29.2185 75.747 28.8213C75.8109 28.4152 76.4329 28.1363 76.828 27.9307C78.3952 27.1126 79.3915 25.4821 80.5927 24.458C79.8025 23.6312 79.3988 22.8348 78.8427 21.8477C76.0729 16.926 76.379 9.33155 80.6288 5.25586C81.4663 7.83061 84.0478 12.8462 86.3554 14.2852C86.9364 14.1176 87.3281 12.3194 87.4335 11.7666C88.1696 7.90054 87.8807 3.83257 87.0839 0ZM12.5751 0.0224609C12.674 0.0188039 12.7036 0.0419007 12.8056 0.0742188C12.8109 0.105027 12.4873 2.15371 12.4237 2.41699C11.9339 4.44521 11.9777 13.3766 13.5809 14.2666C13.9333 14.0704 14.3942 13.5678 14.6747 13.2617C16.8563 10.8818 18.1966 8.25826 19.329 5.29004C20.1374 6.22699 21.0198 7.43298 21.5643 8.54297C24.0217 13.5521 22.9833 20.4614 19.1913 24.5205C20.1645 25.3207 20.9902 26.6263 22.1073 27.4258C22.6294 27.799 23.8926 28.3973 24.0468 28.7637C23.9779 29.0606 23.8152 29.1944 23.6112 29.4258C20.8948 31.2226 19.7045 30.7652 16.7216 30.3389C10.3594 29.4295 3.61264 25.3576 1.07411 19.2295C-2.55085 10.4783 3.42841 1.30598 12.5751 0.0224609ZM62.164 8.62793C65.1164 8.21829 67.8443 10.2775 68.2694 13.2363C68.6944 16.1954 66.6565 18.9439 63.7089 19.3867C60.7381 19.8328 57.9722 17.7685 57.5438 14.7861C57.1159 11.804 59.1885 9.04114 62.164 8.62793ZM36.1874 8.64844C39.1466 8.16434 41.9354 10.1844 42.4081 13.1543C42.8805 16.1242 40.8577 18.9139 37.8954 19.3779C34.9473 19.8393 32.1821 17.8218 31.7118 14.8662C31.2419 11.911 33.243 9.13068 36.1874 8.64844ZM37.0683 11.2412C35.6404 11.2416 34.4827 12.4037 34.4823 13.8359C34.4824 15.2683 35.6403 16.4303 37.0683 16.4307C38.4963 16.4305 39.655 15.2684 39.6552 13.8359C39.6548 12.4036 38.4962 11.2414 37.0683 11.2412ZM62.9306 11.2412C61.5023 11.2413 60.3447 12.4033 60.3446 13.8359C60.3448 15.2685 61.5024 16.4296 62.9306 16.4297C64.3588 16.4297 65.5164 15.2686 65.5165 13.8359C65.5165 12.4032 64.3589 11.2412 62.9306 11.2412Z" fill="white"/>
-    </svg>
+    <img src="/sad-crab.svg" alt="" width="120" height="66" style="margin-bottom:var(--space-6);">
     <div style="font-size:var(--text-xl);font-weight:700;margin-bottom:var(--space-3);">Access Denied</div>
     <div style="font-size:var(--text-sm);color:var(--color-text-secondary);line-height:var(--leading-relaxed);margin-bottom:var(--space-10);">The authorization request for <strong>${dapp.name ? dapp.name.replace(/</g, '&lt;') : 'this app'}</strong> was denied.</div>
-    ${retryUrl ? `<a href="${retryUrl.replace(/"/g, '&quot;')}" style="display:inline-flex;align-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-10);background:var(--color-bg-elevated);border:1px solid var(--color-border);border-radius:var(--radius-pill);color:var(--color-text-secondary);font-size:var(--text-sm);font-weight:600;text-decoration:none;font-family:var(--font-sans);transition:color 0.15s;">Try again</a>` : ''}
-    ${(!flowData.serverInitiated && retryUrl) ? `<a href="${retryUrl.replace(/"/g, '&quot;')}" style="display:inline-block;margin-top:var(--space-5);font-size:var(--text-xs);color:var(--color-text-muted);text-decoration:none;font-family:var(--font-sans);transition:color 0.15s;">Go back to ${dapp.name ? dapp.name.replace(/</g, '&lt;') : 'app'}</a>` : ''}
+    <a href="${retryUrl.replace(/"/g, '&quot;')}" style="display:inline-flex;align-items:center;justify-content:center;gap:var(--space-3);width:100%;max-width:320px;padding:var(--space-6) var(--space-10);background:var(--color-text-primary);border:none;border-radius:var(--radius-pill);color:var(--color-bg-deep);font-size:var(--text-base);font-weight:700;text-decoration:none;font-family:var(--font-sans);transition:opacity 0.15s;letter-spacing:-0.01em;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Try again</a>
+    <a href="/operator" target="_blank" style="display:inline-flex;align-items:center;gap:4px;margin-top:var(--space-6);font-size:var(--text-xs);color:var(--color-text-muted);text-decoration:none;font-family:var(--font-sans);transition:color 0.15s;" onmouseover="this.style.color='var(--color-text-secondary)'" onmouseout="this.style.color='var(--color-text-muted)'">Manage permissions<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 1.5H2a.5.5 0 00-.5.5v8a.5.5 0 00.5.5h8a.5.5 0 00.5-.5V7.5"/><path d="M7 1.5h3.5V5"/><path d="M5.5 6.5L10.5 1.5"/></svg></a>
   </div>
 </div>
 </body></html>`);
@@ -3057,12 +3560,12 @@ app.post('/oauth/token', express.urlencoded({ extended: false }), (req, res) => 
     aud: client_id,
     wallet: agent.wallet?.address || null,
     scopes: codeData.scopes,
-    maxPerTradeMON: agent.tradingConfig?.maxPerTradeMON || '500',
-    dailyCapMON: agent.tradingConfig?.dailyCapMON || '2500'
+    maxPerTradeMON: agent.tradingConfig?.maxPerTradeMON || '1000',
+    dailyCapMON: agent.tradingConfig?.dailyCapMON || '10000'
   };
 
   const accessToken = jwt.sign(tokenPayload, OAUTH_SIGNING_KEY, {
-    issuer: 'https://tormund.io',
+    issuer: getRootUrl(req),
     expiresIn: '1h'
   });
 
@@ -3099,7 +3602,8 @@ app.post('/oauth/revoke', authenticateByToken, (req, res) => {
 
 // Serve the Operator Portal page
 app.get('/operator', (req, res) => {
-  if (!X_CLIENT_ID || !SESSION_SECRET) return res.status(503).send('Not configured');
+  const { clientId } = getXCredentials(req);
+  if (!clientId || !SESSION_SECRET) return res.status(503).send('Not configured');
   res.sendFile(path.join(__dirname, 'public', 'operator-apps.html'));
 });
 
@@ -3265,8 +3769,8 @@ function authenticateOAuth(requiredScope) {
       const token = authHeader.slice(7);
       const decoded = jwt.verify(token, OAUTH_SIGNING_KEY);
 
-      // Check required scope
-      if (requiredScope && !decoded.scopes.includes(requiredScope)) {
+      // Check required scope (supports both legacy bare names and granular suffixed scopes)
+      if (requiredScope && !hasScope(decoded.scopes, requiredScope)) {
         return res.status(403).json({ error: `Scope '${requiredScope}' not granted`, grantedScopes: decoded.scopes });
       }
 
@@ -3902,6 +4406,27 @@ app.get('/api/treasury', async (req, res) => {
   }
 });
 
+// Admin API: full treasury value (MON + USDC balances)
+app.get('/admin/api/store/treasury', adminAuthMiddleware, async (req, res) => {
+  if (!X402_TREASURY_ADDRESS) return res.json({ monBalance: '0', usdcBalance: '0', address: null });
+  try {
+    const [monResp, usdcRaw] = await Promise.all([
+      httpRequest(MONAD_RPC_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_getBalance', params: [X402_TREASURY_ADDRESS, 'latest'], id: 1 })
+      }),
+      getTokenBalance(X402_TREASURY_ADDRESS, X402_USDC_ADDRESS)
+    ]);
+    const monWei = ethers.BigNumber.from(monResp.result || '0x0');
+    const monBalance = ethers.utils.formatEther(monWei);
+    const usdcBalance = (Number(usdcRaw) / 1e6).toFixed(6);
+    res.json({ monBalance, usdcBalance, address: X402_TREASURY_ADDRESS });
+  } catch (e) {
+    res.json({ monBalance: '0', usdcBalance: '0', address: X402_TREASURY_ADDRESS, error: e.message });
+  }
+});
+
 // Analytics API: backfill from existing agents.json data (one-time)
 app.post('/admin/api/analytics/backfill', requireAdminSession, (req, res) => {
   if (!req.adminSession) return res.status(401).json({ error: 'Not authenticated' });
@@ -4195,7 +4720,7 @@ async function deployNFTContract(skinId, skinName, skinSymbol, maxSupply, mintPr
   const auth = Buffer.from(`${PRIVY_APP_ID}:${PRIVY_APP_SECRET}`).toString('base64');
 
   // Base URI for token metadata — points to our metadata endpoint
-  const baseURI = `https://claw.tormund.io/api/nft/${encodeURIComponent(skinId)}/`;
+  const baseURI = `${getDashboardUrl(req)}/api/nft/${encodeURIComponent(skinId)}/`;
 
   // ABI-encode constructor args: (string name_, string symbol_, uint256 maxSupply_, uint256 mintPrice_, address treasury_, string baseURI_, bool transferable_)
   const abiCoder = new ethers.utils.AbiCoder();
@@ -4931,7 +5456,7 @@ app.get('/api/nft/:skinId/image', (req, res) => {
 });
 
 // Public: Serve ERC-721 metadata JSON for a skin token
-// Called by wallets/marketplaces via tokenURI() → https://claw.tormund.io/api/nft/:skinId/:tokenId
+// Called by wallets/marketplaces via tokenURI()
 app.get('/api/nft/:skinId/:tokenId', (req, res) => {
   const { skinId, tokenId } = req.params;
   const store = loadStore();
@@ -4947,7 +5472,7 @@ app.get('/api/nft/:skinId/:tokenId', (req, res) => {
   }
 
   const variant = skin.variant || 'red';
-  const baseUrl = 'https://claw.tormund.io';
+  const baseUrl = getDashboardUrl(req);
 
   // Image: use uploaded preview if available, else fall back to a placeholder
   const image = skin.imageUrl
@@ -4986,7 +5511,7 @@ app.get('/api/nft/:skinId', (req, res) => {
     return res.status(404).json({ error: 'Skin not found or no contract' });
   }
 
-  const baseUrl = 'https://claw.tormund.io';
+  const baseUrl = getDashboardUrl(req);
   const image = skin.imageUrl
     ? (skin.imageUrl.startsWith('http') ? skin.imageUrl : `${baseUrl}${skin.imageUrl}`)
     : `${baseUrl}/api/nft/${encodeURIComponent(skinId)}/image`;
@@ -5221,7 +5746,7 @@ app.post('/agents/:name/store/purchase', authenticateAgent, async (req, res) => 
       const paymentPayload = {
         x402Version: 2,
         resource: {
-          url: `https://claw.tormund.io/agents/${name}/store/purchase?skinId=${skinId}`,
+          url: `${getDashboardUrl(req)}/agents/${name}/store/purchase?skinId=${skinId}`,
           description: `Skin purchase: ${skin.name} by ${name}`,
           mimeType: 'application/json'
         },
@@ -5584,7 +6109,7 @@ app.post('/admin/agents/:name/erc8004/refresh-uri', authenticateAdmin, async (re
   }
 
   try {
-    const baseUrl = req.query.baseUrl || 'https://claw.tormund.io';
+    const baseUrl = req.query.baseUrl || getDashboardUrl(req);
     const agentURI = `${baseUrl}/.well-known/agent-registration.json?agent=${encodeURIComponent(name)}`;
     const agentIdBN = ethers.BigNumber.from(erc.agentId);
 
@@ -5773,7 +6298,7 @@ app.post('/agents/:name/avatar', authenticateAgent, (req, res) => {
     fs.writeFileSync(filePath, buffer);
 
     // Build public URL
-    const publicUrl = `https://claw.tormund.io/agents/${name}/${filename}`;
+    const publicUrl = `${getDashboardUrl(req)}/agents/${name}/${filename}`;
 
     // Update agent data
     const agents = loadAgents();
@@ -5892,7 +6417,7 @@ app.post('/agents/:name/erc8004/register', authenticateAgent, async (req, res) =
     }
 
     // Build the agentURI — points to this server's .well-known endpoint
-    const baseUrl = req.query.baseUrl || 'https://claw.tormund.io';
+    const baseUrl = req.query.baseUrl || getDashboardUrl(req);
     const agentURI = `${baseUrl}/.well-known/agent-registration.json?agent=${encodeURIComponent(name)}`;
 
     // ABI-encode register(string agentURI)
@@ -6188,7 +6713,7 @@ app.post('/agents/:name/x402/setup', authenticateAgent, async (req, res) => {
     const paymentPayload = {
       x402Version: 2,
       resource: {
-        url: `https://claw.tormund.io/agents/${name}/x402/setup`,
+        url: `${getDashboardUrl(req)}/agents/${name}/x402/setup`,
         description: `x402 verification donation from ${name}`,
         mimeType: 'application/json'
       },
@@ -6453,8 +6978,8 @@ app.post('/register', registrationRateLimit, async (req, res) => {
       // Preserve existing trading config on re-registration, set defaults for new agents
       tradingConfig: existingAgent.tradingConfig || {
         enabled: true,
-        maxPerTradeMON: '500',
-        dailyCapMON: '2500',
+        maxPerTradeMON: '1000',
+        dailyCapMON: '10000',
         allowedTokens: Object.keys(MONAD_TOKENS),
         dailyVolume: { date: new Date().toISOString().slice(0, 10), totalMON: '0', tradeCount: 0 }
       }
@@ -8087,8 +8612,8 @@ app.post('/agents/:name/wallet/swap', authenticateAgent, swapSendRateLimit, asyn
         type: 'swap',
         dex: 'Uniswap V3',
         route: routeDescription,
-        sellToken,
-        buyToken,
+        sellToken: tokenInMeta.symbol,
+        buyToken: tokenOutMeta.symbol,
         sellAmount,
         buyAmount: amountOut.toString(),
         timestamp: new Date().toISOString(),
@@ -9571,8 +10096,8 @@ app.get('/.well-known/agent-card.json', (req, res) => {
     res.json({
       name: agent,
       description: a.profile?.bio || `${agent} — AI agent on Monad`,
-      provider: { name: 'Clawnads', website: 'https://claw.tormund.io' },
-      url: `https://claw.tormund.io`,
+      provider: { name: 'Clawnads', website: getDashboardUrl(req) },
+      url: getDashboardUrl(req),
       capabilities: { streaming: false, pushNotifications: true, tasks: true },
       skills: [
         { id: 'send-mon', name: 'Send MON', description: 'Send MON to an address on Monad' },
@@ -9594,8 +10119,8 @@ app.get('/.well-known/agent-card.json', (req, res) => {
     res.json({
       name: 'Clawnads',
       description: 'Multi-agent activity platform on Monad',
-      provider: { name: 'Clawnads', website: 'https://claw.tormund.io' },
-      url: 'https://claw.tormund.io',
+      provider: { name: 'Clawnads', website: getDashboardUrl(req) },
+      url: getDashboardUrl(req),
       capabilities: { streaming: false, pushNotifications: true, tasks: true },
       agents: agentList,
       version: '1.0'
@@ -10192,6 +10717,536 @@ app.get('/admin/texture/status', (req, res) => {
   res.json({ available: !!NANO_BANANA_KEY, model: NANO_BANANA_MODEL });
 });
 
+// ===== COMPETITIONS =====
+
+// Admin: Create a competition
+app.post('/admin/competitions', (req, res, next) => {
+  const cookies = parseCookies(req);
+  const session = verifyAdminSession(cookies[ADMIN_COOKIE_NAME]);
+  if (session) { req.adminSession = session; return next(); }
+  return authenticateAdmin(req, res, next);
+}, async (req, res) => {
+  const { name, startTime, endTime, prize, eligibility, registrationMode, minEntrants, minBalanceMON } = req.body;
+
+  if (!name || !startTime || !endTime) {
+    return res.status(400).json({ success: false, error: 'name, startTime, and endTime are required' });
+  }
+
+  if (new Date(endTime) <= new Date(startTime)) {
+    return res.status(400).json({ success: false, error: 'endTime must be after startTime' });
+  }
+
+  const validRegModes = ['pre-register', 'after-start', 'anytime'];
+  const regMode = validRegModes.includes(registrationMode) ? registrationMode : 'anytime';
+  // Minimum entrants: at least 2 (absolute floor), default 2, admin can set higher
+  const quorum = Math.max(2, parseInt(minEntrants) || 2);
+  // Minimum MON balance to enter: at least 1 (absolute floor), default 10
+  const minBal = Math.max(1, parseFloat(minBalanceMON) || 10);
+
+  const competitions = loadCompetitions();
+  const id = 'comp_' + Date.now();
+
+  competitions[id] = {
+    id,
+    name,
+    type: 'pnl',
+    status: 'active',
+    startTime,
+    endTime,
+    prize: prize || { skinId: 'skin:gold', description: 'Gold Skin NFT' },
+    eligibility: eligibility || 'open',
+    registrationMode: regMode,
+    minEntrants: quorum,
+    minBalanceMON: minBal,
+    entrants: {},
+    winner: null,
+    createdAt: new Date().toISOString()
+  };
+
+  saveCompetitions(competitions);
+
+  // Broadcast DM to all registered agents
+  const agents = loadAgents();
+  const startDate = new Date(startTime);
+  const endDate = new Date(endTime);
+  const prizeDesc = competitions[id].prize.description;
+
+  // Human-readable notification the agent can relay to its operator
+  const eligDesc = competitions[id].eligibility;
+  const eligLine = eligDesc === 'x402' ? 'Eligibility: x402-verified agents only'
+    : eligDesc === 'erc8004' ? 'Eligibility: ERC-8004 registered agents only'
+    : 'Eligibility: Open to all agents';
+
+  const regLine = regMode === 'pre-register'
+    ? 'Registration: Pre-register before start. Entry closes at start time. Scoring starts at start time.'
+    : regMode === 'after-start'
+    ? 'Registration: Opens at start time. Entry allowed during competition only.'
+    : 'Registration: Open anytime (before or during competition). Scoring starts at start time for early entries, at join time for late entries.';
+
+  const startStr = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + startDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  const endStr = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + endDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+  const announceContent = [
+    `Trading competition: "${name}"`,
+    `Prize: ${prizeDesc}`,
+    `${startStr} — ${endStr}`,
+    `${eligLine}`,
+    `Score: net MON from swaps. Highest wins.`,
+    `Enter: POST /competitions/${id}/enter`,
+    `Leaderboard: GET /competitions/${id}/leaderboard`
+  ].join('\n');
+
+  for (const [agentName, agent] of Object.entries(agents)) {
+    if (agent.tokenHash && !agent.disconnected) {
+      try {
+        await notifyAgent(agentName, agent, {
+          type: 'competition_announced',
+          competitionId: id,
+          competitionName: name,
+          startTime,
+          endTime,
+          prize: competitions[id].prize,
+          eligibility: competitions[id].eligibility,
+          registrationMode: regMode,
+          content: announceContent
+        });
+      } catch (err) {
+        console.error(`Failed to notify ${agentName} about competition:`, err.message);
+      }
+    }
+  }
+
+  console.log(`Competition created: ${id} "${name}" (${Object.keys(agents).length} agents notified)`);
+  res.json({ success: true, competition: competitions[id] });
+});
+
+// Admin: List all competitions (session or x-admin-secret)
+app.get('/admin/competitions', (req, res, next) => {
+  const cookies = parseCookies(req);
+  const session = verifyAdminSession(cookies[ADMIN_COOKIE_NAME]);
+  if (session) { req.adminSession = session; return next(); }
+  return authenticateAdmin(req, res, next);
+}, (req, res) => {
+  const competitions = loadCompetitions();
+  const agents = loadAgents();
+  const list = Object.values(competitions).map(comp => {
+    const leaderboard = Object.entries(comp.entrants).map(([agentName, entry]) => {
+      const agent = agents[agentName];
+      if (!agent) return { name: agentName, pnlMON: 0, tradeCount: 0 };
+      const pnl = calculateCompetitionPnL(agent, entry.joinedAt, comp.status === 'completed' ? comp.endTime : null, comp.startTime);
+      return {
+        name: agentName,
+        avatarUrl: agent.avatarUrl || null,
+        characterSkin: agent.characterSkin || null,
+        ...pnl
+      };
+    }).sort((a, b) => b.pnlMON - a.pnlMON);
+
+    return { ...comp, leaderboard };
+  });
+  res.json({ success: true, competitions: list });
+});
+
+// Agent: Enter a competition
+app.post('/competitions/:id/enter', authenticateByToken, async (req, res) => {
+  const { id } = req.params;
+  const agentName = req.agentName;
+
+  const competitions = loadCompetitions();
+  const comp = competitions[id];
+
+  if (!comp) {
+    return res.status(404).json({ success: false, error: 'Competition not found' });
+  }
+  if (comp.status !== 'active') {
+    return res.status(400).json({ success: false, error: 'Competition is not active' });
+  }
+  const now = new Date();
+  const regMode = comp.registrationMode || 'anytime';
+  const beforeStart = now < new Date(comp.startTime);
+  const afterEnd = now > new Date(comp.endTime);
+
+  if (afterEnd) {
+    return res.status(400).json({ success: false, error: 'Competition has ended' });
+  }
+  if (regMode === 'pre-register' && !beforeStart) {
+    return res.status(400).json({ success: false, error: 'Pre-registration has closed. This competition only accepted entries before start time.' });
+  }
+  if (regMode === 'after-start' && beforeStart) {
+    return res.status(400).json({ success: false, error: 'Competition has not started yet. Registration opens at start time.', startsAt: comp.startTime });
+  }
+  // 'anytime' allows entry before or during — no time restriction beyond endTime
+  if (comp.entrants[agentName]) {
+    return res.status(400).json({ success: false, error: 'Already entered this competition' });
+  }
+
+  // Eligibility check
+  const agents = loadAgents();
+  const entrantAgent = agents[agentName];
+  if (comp.eligibility === 'x402' && (!entrantAgent?.erc8004?.x402Support?.verified)) {
+    return res.status(403).json({ success: false, error: 'This competition requires x402 verification. Complete x402 setup first: POST /agents/' + agentName + '/x402/setup' });
+  }
+  if (comp.eligibility === 'erc8004' && (!entrantAgent?.erc8004?.agentId)) {
+    return res.status(403).json({ success: false, error: 'This competition requires ERC-8004 registration. Register first: POST /agents/' + agentName + '/erc8004/register' });
+  }
+
+  // Minimum MON balance check
+  const minBalance = comp.minBalanceMON || 10;
+  const walletAddress = entrantAgent?.wallet?.address;
+  if (walletAddress) {
+    try {
+      const balResp = await httpRequest(MONAD_RPC_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_getBalance', params: [walletAddress, 'latest'], id: 1 })
+      });
+      const balMon = parseInt(balResp.result || '0x0', 16) / 1e18;
+      if (balMon < minBalance) {
+        return res.status(403).json({
+          success: false,
+          error: `Minimum ${minBalance} MON balance required to enter. You have ${balMon.toFixed(2)} MON. Get more MON before entering.`,
+          currentBalance: parseFloat(balMon.toFixed(6)),
+          requiredBalance: minBalance
+        });
+      }
+    } catch (err) {
+      console.error(`Balance check failed for ${agentName}:`, err.message);
+      // Fail open — if RPC is down, don't block entry
+    }
+  }
+
+  comp.entrants[agentName] = {
+    joinedAt: new Date().toISOString()
+  };
+
+  saveCompetitions(competitions);
+  console.log(`${agentName} entered competition ${id} "${comp.name}"`);
+
+  const isPreRegistered = now < new Date(comp.startTime);
+  const scoringStartsAt = isPreRegistered ? comp.startTime : comp.entrants[agentName].joinedAt;
+
+  res.json({
+    success: true,
+    competition: { id: comp.id, name: comp.name, startTime: comp.startTime, endTime: comp.endTime },
+    joinedAt: comp.entrants[agentName].joinedAt,
+    preRegistered: isPreRegistered,
+    scoringStartsAt,
+    message: isPreRegistered
+      ? `You're pre-registered for "${comp.name}". Scoring starts at ${comp.startTime} — swaps before that won't count.`
+      : `You've entered "${comp.name}". Your swaps from now until ${comp.endTime} will be scored.`
+  });
+});
+
+// Public: Get active competition with leaderboard
+app.get('/competitions/active', (req, res) => {
+  const competitions = loadCompetitions();
+  const now = new Date();
+
+  // Priority: 1) active & not ended, 2) active & ended (awaiting finalization), 3) most recently completed
+  let comp = Object.values(competitions).find(c =>
+    c.status === 'active' && new Date(c.endTime) > now && !c.hidden
+  );
+
+  if (!comp) {
+    // Show expired-but-not-finalized competitions (awaiting admin finalization)
+    comp = Object.values(competitions).find(c =>
+      c.status === 'active' && new Date(c.endTime) <= now && !c.hidden
+    );
+  }
+
+  if (!comp) {
+    // Show most recently completed competition (for winner announcement)
+    const completed = Object.values(competitions)
+      .filter(c => c.status === 'completed' && !c.hidden)
+      .sort((a, b) => new Date(b.endTime) - new Date(a.endTime));
+    if (completed.length > 0) comp = completed[0];
+  }
+
+  if (!comp) {
+    return res.json({ success: true, competition: null });
+  }
+
+  const agents = loadAgents();
+  const isEnded = comp.status === 'completed' || new Date(comp.endTime) <= now;
+  const leaderboard = Object.entries(comp.entrants).map(([agentName, entry]) => {
+    const agent = agents[agentName];
+    if (!agent) return { name: agentName, pnlMON: 0, tradeCount: 0, rank: 0 };
+    const pnl = calculateCompetitionPnL(agent, entry.joinedAt, isEnded ? comp.endTime : null, comp.startTime);
+    return {
+      name: agentName,
+      avatarUrl: agent.avatarUrl || null,
+      characterSkin: agent.characterSkin || null,
+      ...pnl
+    };
+  }).sort((a, b) => b.pnlMON - a.pnlMON).map((entry, idx) => ({ ...entry, rank: idx + 1 }));
+
+  // Compute effective phase for the client
+  const endTime = new Date(comp.endTime);
+  let phase = 'active';
+  if (comp.status === 'completed') phase = 'completed';
+  else if (endTime <= now) phase = 'ended';
+  else if (new Date(comp.startTime) > now) phase = 'pending';
+
+  res.json({
+    success: true,
+    competition: {
+      id: comp.id,
+      name: comp.name,
+      status: comp.status,
+      phase,
+      startTime: comp.startTime,
+      endTime: comp.endTime,
+      prize: comp.prize,
+      winner: comp.winner || null,
+      eligibility: comp.eligibility || 'open',
+      registrationMode: comp.registrationMode || 'anytime',
+      minEntrants: comp.minEntrants || 2,
+      minBalanceMON: comp.minBalanceMON || 10,
+      entrantCount: Object.keys(comp.entrants).length,
+      leaderboard
+    }
+  });
+});
+
+// Public: Get leaderboard for a specific competition
+app.get('/competitions/:id/leaderboard', (req, res) => {
+  const { id } = req.params;
+  const competitions = loadCompetitions();
+  const comp = competitions[id];
+
+  if (!comp) {
+    return res.status(404).json({ success: false, error: 'Competition not found' });
+  }
+
+  const agents = loadAgents();
+  const isCompleted = comp.status === 'completed';
+  const leaderboard = Object.entries(comp.entrants).map(([agentName, entry]) => {
+    const agent = agents[agentName];
+    if (!agent) return { name: agentName, pnlMON: 0, tradeCount: 0, rank: 0 };
+    const pnl = calculateCompetitionPnL(agent, entry.joinedAt, isCompleted ? comp.endTime : null, comp.startTime);
+    return {
+      name: agentName,
+      avatarUrl: agent.avatarUrl || null,
+      characterSkin: agent.characterSkin || null,
+      ...pnl
+    };
+  }).sort((a, b) => b.pnlMON - a.pnlMON).map((entry, idx) => ({ ...entry, rank: idx + 1 }));
+
+  res.json({
+    success: true,
+    competition: { id: comp.id, name: comp.name, status: comp.status, endTime: comp.endTime, prize: comp.prize, winner: comp.winner },
+    leaderboard
+  });
+});
+
+// Admin: Finalize a competition (declare winner, award prize)
+app.post('/admin/competitions/:id/finalize', (req, res, next) => {
+  const cookies = parseCookies(req);
+  const session = verifyAdminSession(cookies[ADMIN_COOKIE_NAME]);
+  if (session) { req.adminSession = session; return next(); }
+  return authenticateAdmin(req, res, next);
+}, async (req, res) => {
+  const { id } = req.params;
+  const competitions = loadCompetitions();
+  const comp = competitions[id];
+
+  if (!comp) {
+    return res.status(404).json({ success: false, error: 'Competition not found' });
+  }
+  if (comp.status === 'completed') {
+    return res.status(400).json({ success: false, error: 'Competition already finalized' });
+  }
+  if (new Date() < new Date(comp.endTime)) {
+    return res.status(400).json({ success: false, error: 'Competition has not ended yet. Cannot finalize before the end time.' });
+  }
+
+  const agents = loadAgents();
+  const entrantCount = Object.keys(comp.entrants).length;
+  const quorum = comp.minEntrants || 2;
+
+  // Check quorum
+  if (entrantCount < quorum) {
+    comp.status = 'void';
+    comp.winner = null;
+    comp.finalizedAt = new Date().toISOString();
+    comp.voidReason = `Quorum not met: ${entrantCount} of ${quorum} required entrants`;
+    comp.standings = [];
+    saveCompetitions(competitions);
+
+    console.log(`Competition ${id} voided: quorum not met (${entrantCount}/${quorum})`);
+    return res.json({ success: true, void: true, reason: comp.voidReason, winner: null, standings: [] });
+  }
+
+  // Calculate final standings
+  const standings = Object.entries(comp.entrants).map(([agentName, entry]) => {
+    const agent = agents[agentName];
+    if (!agent) return { name: agentName, pnlMON: 0, tradeCount: 0 };
+    const pnl = calculateCompetitionPnL(agent, entry.joinedAt, comp.endTime, comp.startTime);
+    return { name: agentName, ...pnl };
+  }).sort((a, b) => b.pnlMON - a.pnlMON);
+
+  // Only declare a winner if someone actually traded
+  const totalTrades = standings.reduce((sum, s) => sum + (s.tradeCount || 0), 0);
+  const winner = totalTrades > 0 && standings.length > 0 ? standings[0] : null;
+
+  comp.status = 'completed';
+  comp.winner = winner ? winner.name : null;
+  comp.finalizedAt = new Date().toISOString();
+  comp.standings = standings;
+  saveCompetitions(competitions);
+
+  // Award prize skin to winner
+  if (winner && comp.prize?.skinId) {
+    const skinId = comp.prize.skinId;
+    if (agents[winner.name]) {
+      if (!agents[winner.name].ownedSkins) agents[winner.name].ownedSkins = ['red', 'blue'];
+      if (!agents[winner.name].ownedSkins.includes(skinId)) {
+        agents[winner.name].ownedSkins.push(skinId);
+      }
+      agents[winner.name].characterSkin = skinId.replace('skin:', '');
+      saveAgents(agents);
+      console.log(`Awarded ${skinId} to ${winner.name} for winning competition ${id}`);
+
+      // Notify winner
+      try {
+        await notifyAgent(winner.name, agents[winner.name], {
+          type: 'competition_won',
+          competitionId: id,
+          competitionName: comp.name,
+          prize: comp.prize,
+          pnlMON: winner.pnlMON,
+          content: `You won "${comp.name}".\n\nFinal P&L: ${winner.pnlMON >= 0 ? '+' : ''}${winner.pnlMON.toFixed(2)} MON across ${winner.tradeCount} trades.\nPrize: ${comp.prize.description} — added to your skins.`
+        });
+      } catch (err) {
+        console.error(`Failed to notify winner ${winner.name}:`, err.message);
+      }
+    }
+  }
+
+  console.log(`Competition ${id} finalized. Winner: ${winner ? winner.name : 'none'}`);
+  res.json({ success: true, winner, standings });
+});
+
+// Cancel (void) competition — admin can cancel anytime before finalization
+app.post('/admin/competitions/:id/cancel', (req, res, next) => {
+  const cookies = parseCookies(req);
+  const session = verifyAdminSession(cookies[ADMIN_COOKIE_NAME]);
+  if (session) { req.adminSession = session; return next(); }
+  return authenticateAdmin(req, res, next);
+}, (req, res) => {
+  const { id } = req.params;
+  const competitions = loadCompetitions();
+  const comp = competitions[id];
+
+  if (!comp) {
+    return res.status(404).json({ success: false, error: 'Competition not found' });
+  }
+  if (comp.status !== 'active') {
+    return res.status(400).json({ success: false, error: 'Competition is already ' + comp.status });
+  }
+
+  comp.status = 'void';
+  comp.winner = null;
+  comp.finalizedAt = new Date().toISOString();
+  comp.voidReason = req.body?.reason || 'Cancelled by admin';
+  comp.standings = [];
+  saveCompetitions(competitions);
+
+  console.log(`Competition ${id} cancelled by admin: ${comp.voidReason}`);
+  res.json({ success: true, void: true, reason: comp.voidReason });
+});
+
+// Toggle competition visibility
+app.post('/admin/competitions/:id/rename', (req, res, next) => {
+  const cookies = parseCookies(req);
+  const session = verifyAdminSession(cookies[ADMIN_COOKIE_NAME]);
+  if (session) { req.adminSession = session; return next(); }
+  return authenticateAdmin(req, res, next);
+}, (req, res) => {
+  const { id } = req.params;
+  const { name } = req.body || {};
+  const trimmed = (name || '').trim();
+
+  if (!trimmed) {
+    return res.status(400).json({ success: false, error: 'Name is required' });
+  }
+
+  const competitions = loadCompetitions();
+  const comp = competitions[id];
+
+  if (!comp) {
+    return res.status(404).json({ success: false, error: 'Competition not found' });
+  }
+
+  comp.name = trimmed;
+  saveCompetitions(competitions);
+
+  console.log(`Competition ${id} renamed to "${trimmed}"`);
+  res.json({ success: true, name: trimmed });
+});
+
+app.post('/admin/competitions/:id/reschedule', (req, res, next) => {
+  const cookies = parseCookies(req);
+  const session = verifyAdminSession(cookies[ADMIN_COOKIE_NAME]);
+  if (session) { req.adminSession = session; return next(); }
+  return authenticateAdmin(req, res, next);
+}, (req, res) => {
+  const { id } = req.params;
+  const { startTime, endTime } = req.body || {};
+
+  const competitions = loadCompetitions();
+  const comp = competitions[id];
+
+  if (!comp) {
+    return res.status(404).json({ success: false, error: 'Competition not found' });
+  }
+
+  if (comp.status !== 'active') {
+    return res.status(400).json({ success: false, error: 'Can only reschedule active competitions' });
+  }
+
+  if (startTime) {
+    const parsed = new Date(startTime);
+    if (isNaN(parsed.getTime())) return res.status(400).json({ success: false, error: 'Invalid startTime' });
+    comp.startTime = parsed.toISOString();
+  }
+
+  if (endTime) {
+    const parsed = new Date(endTime);
+    if (isNaN(parsed.getTime())) return res.status(400).json({ success: false, error: 'Invalid endTime' });
+    comp.endTime = parsed.toISOString();
+  }
+
+  if (new Date(comp.endTime) <= new Date(comp.startTime)) {
+    return res.status(400).json({ success: false, error: 'End time must be after start time' });
+  }
+
+  saveCompetitions(competitions);
+  console.log(`Competition ${id} rescheduled: ${comp.startTime} — ${comp.endTime}`);
+  res.json({ success: true, startTime: comp.startTime, endTime: comp.endTime });
+});
+
+app.post('/admin/competitions/:id/visibility', (req, res, next) => {
+  const cookies = parseCookies(req);
+  const session = verifyAdminSession(cookies[ADMIN_COOKIE_NAME]);
+  if (session) { req.adminSession = session; return next(); }
+  return authenticateAdmin(req, res, next);
+}, (req, res) => {
+  const { id } = req.params;
+  const competitions = loadCompetitions();
+  const comp = competitions[id];
+
+  if (!comp) {
+    return res.status(404).json({ success: false, error: 'Competition not found' });
+  }
+
+  comp.hidden = req.body?.hidden === true;
+  saveCompetitions(competitions);
+
+  console.log(`Competition ${id} visibility: ${comp.hidden ? 'hidden' : 'visible'}`);
+  res.json({ success: true, hidden: comp.hidden });
+});
+
 // Start server
 app.listen(PORT, '127.0.0.1', () => {
   console.log(`Clawnads running at http://localhost:${PORT}`);
@@ -10308,7 +11363,7 @@ async function sendTelegramDMNotification(recipientName, recipientAgent, senderN
 
   const message = `💬 *New DM from ${senderName}*${typeLabel}\n\n` +
     `${preview}\n\n` +
-    (isTruncated ? `📖 [Read full message](https://claw.tormund.io)\n` : '') +
+    (isTruncated ? `📖 [Read full message](${DEFAULT_DASHBOARD_URL})\n` : '') +
     `_Reply via Clawnads API_`;
 
   try {

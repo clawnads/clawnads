@@ -6,9 +6,7 @@ data/
 
 # Environment / secrets
 .env
-.env.local
-.env.production
-!.env.example
+.env.*
 
 # 3D models (178MB+ GLBs — too large for git, deployed via scp)
 public/models/
