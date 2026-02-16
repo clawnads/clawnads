@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html><head><title>Render Skin Thumbnails</title>
+<style>body{background:#09090b;color:#fff;font-family:system-ui;padding:20px}
+canvas{display:none}
+.preview{display:inline-block;margin:8px;text-align:center}
+.preview img{width:200px;height:267px;border:1px solid #333;border-radius:8px}
+.preview p{margin:4px 0;font-size:12px;color:#aaa}
+button{margin:20px 0;padding:10px 20px;background:#7c3aed;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px}
+</style>
+</head><body>
+<h2>Skin Thumbnail Generator</h2>
+<p>Click "Render All" to generate thumbnails. Right-click each to save, or click "Download All".</p>
+<button id="render-btn">Render All</button>
+<button id="download-btn" style="display:none">Download All</button>
+<div id="output"></div>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLobster } from '/character/gltf-lobster.js';
+
+window.THREE = THREE;
+
+const VARIANTS = ['red', 'blue', 'gold', 'purple', 'shadow'];
+const SIZE = 512;
+const results = {};
+
+let renderer, scene, camera;
+
+function initRenderer() {
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  renderer.setSize(SIZE, SIZE);
+  renderer.setPixelRatio(2);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.2;
+
+  scene = new THREE.Scene();
+
+  // Lighting — same as admin-store snapshot renderer
+  scene.add(new THREE.AmbientLight('#4a3a30', 0.6));
+
+  const key = new THREE.DirectionalLight('#ffeedd', 1.0);
+  key.position.set(3, 5, 4);
+  scene.add(key);
+
+  const fill = new THREE.DirectionalLight('#88aacc', 0.4);
+  fill.position.set(-4, 3, 2);
+  scene.add(fill);
+
+  const rim = new THREE.DirectionalLight('#22c55e', 0.3);
+  rim.position.set(0, 2, -4);
+  scene.add(rim);
+
+  scene.add(new THREE.HemisphereLight('#1a1a2e', '#0a0a0c', 0.3));
+
+  camera = new THREE.PerspectiveCamera(28, 1, 0.1, 50);
+  camera.position.set(0.45, 0.55, 1.8);
+  camera.lookAt(0, 0.38, 0);
+}
+
+async function renderVariant(variant) {
+  // Shadow needs visible background
+  if (variant === 'shadow') {
+    renderer.setClearColor(0x18181b, 1);
+  } else {
+    renderer.setClearColor(0x000000, 0);
+  }
+
+  await GLTFLobster.preload('/models', variant);
+  const lobster = GLTFLobster.createSync({ variant });
+  scene.add(lobster.group);
+
+  if (lobster.groundRing) lobster.groundRing.visible = false;
+
+  lobster.tick(0.016);
+  lobster.tick(0.016);
+  lobster.tick(0.016);
+
+  lobster.group.rotation.y = -0.35;
+
+  renderer.render(scene, camera);
+
+  const canvas = renderer.domElement;
+  const dataUrl = canvas.toDataURL('image/png');
+
+  scene.remove(lobster.group);
+  lobster.dispose();
+
+  return dataUrl;
+}
+
+document.getElementById('render-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('render-btn');
+  btn.disabled = true;
+  btn.textContent = 'Rendering...';
+
+  initRenderer();
+  const output = document.getElementById('output');
+  output.innerHTML = '';
+
+  for (const v of VARIANTS) {
+    btn.textContent = `Rendering ${v}...`;
+    const dataUrl = await renderVariant(v);
+    results[v] = dataUrl;
+
+    const div = document.createElement('div');
+    div.className = 'preview';
+    div.innerHTML = `<img src="${dataUrl}" alt="${v}"><p>${v}-idle-thumb.png</p>`;
+    output.appendChild(div);
+  }
+
+  btn.textContent = 'Done!';
+  document.getElementById('download-btn').style.display = '';
+
+  // Cleanup
+  renderer.dispose();
+});
+
+document.getElementById('download-btn').addEventListener('click', () => {
+  for (const [v, dataUrl] of Object.entries(results)) {
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `${v}-idle-thumb.png`;
+    a.click();
+  }
+});
+</script>
+</body></html>

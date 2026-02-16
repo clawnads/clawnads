@@ -1,0 +1,110 @@
+/* Shared admin nav profile — avatar + logout dropdown */
+
+.anav-profile {
+  position: fixed;
+  top: 12px;
+  right: 16px;
+  z-index: 200;
+}
+
+.anav-wrap {
+  position: relative;
+}
+
+.anav-btn {
+  display: flex;
+  align-items: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.anav-circle {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: rgba(39, 39, 42, 0.85);
+  border: 1px solid rgba(63, 63, 70, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  color: #a1a1aa;
+  text-transform: uppercase;
+  overflow: hidden;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: border-color 0.15s;
+}
+
+.anav-btn:hover .anav-circle {
+  border-color: rgba(113, 113, 122, 0.5);
+}
+
+.anav-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.anav-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 140px;
+  background: rgba(24, 24, 27, 0.95);
+  border: 1px solid rgba(63, 63, 70, 0.5);
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transform: scale(0.95) translateY(-4px);
+  pointer-events: none;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.anav-wrap.open .anav-dropdown {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  pointer-events: auto;
+}
+
+.anav-dropdown-user {
+  padding: 6px 10px 4px;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  color: #71717a;
+  border-bottom: 1px solid rgba(63, 63, 70, 0.3);
+  margin-bottom: 2px;
+}
+
+.anav-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: #a1a1aa;
+  cursor: pointer;
+  transition: all 0.12s;
+  text-align: left;
+}
+
+.anav-dropdown-item:hover {
+  background: rgba(63, 63, 70, 0.3);
+  color: #fafafa;
+}
+
+.anav-dropdown-danger:hover {
+  color: #ef4444;
+}

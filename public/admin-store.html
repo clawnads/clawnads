@@ -1,0 +1,2981 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Store Ops — Clawnads Admin</title>
+  <link rel="icon" type="image/svg+xml" href="/clawnads-favicon-white.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css?v=admin20">
+  <link rel="stylesheet" href="/admin.css?v=admin20">
+  <link rel="stylesheet" href="/admin-nav.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script src="https://unpkg.com/lucide@0.564.0/dist/umd/lucide.min.js" integrity="sha384-5C/p6b/eqS/9zLGmFXgLCD0c4jXA3X6gWIGGw3IAt4DVpkEuf+EwtWBLR3/d5TZT" crossorigin="anonymous"></script>
+  <style>
+    /* ===== Store Ops Layout ===== */
+    .store-page {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: var(--space-8) var(--space-16);
+    }
+
+    .store-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-4);
+    }
+
+    .store-header h2 {
+      font-size: var(--text-xl);
+      font-weight: 600;
+      color: var(--color-text-primary);
+      margin: 0;
+    }
+
+    .store-header-subtitle {
+      font-size: var(--text-sm);
+      color: var(--color-text-muted);
+      margin: 0;
+    }
+
+    .store-header-left {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+    }
+
+    .store-header-actions {
+      display: flex;
+      gap: var(--space-3);
+    }
+
+    /* ===== Summary stats row ===== */
+    .store-summary {
+      display: flex;
+      gap: var(--space-8);
+      margin-bottom: var(--space-8);
+      padding: var(--space-6) 0;
+      border-bottom: 1px solid var(--color-border-subtle);
+    }
+
+    .store-summary-stat {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+    }
+
+    .store-summary-value {
+      font-size: var(--text-lg);
+      font-weight: 600;
+      color: var(--color-text-primary);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .store-summary-label {
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .store-summary-gas {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-4);
+      border-radius: var(--radius-lg);
+      background: var(--color-bg-elevated);
+      border: 1px solid var(--color-border-subtle);
+      font-size: var(--text-sm);
+      color: var(--color-text-secondary);
+      cursor: default;
+      white-space: nowrap;
+    }
+
+    .store-summary-gas .gas-icon {
+      font-size: var(--text-base);
+      line-height: 1;
+    }
+
+    .store-summary-gas .gas-value {
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: var(--color-text-primary);
+    }
+
+    .store-summary-gas.gas-low {
+      border-color: var(--color-warning, #f59e0b);
+      background: rgba(245, 158, 11, 0.08);
+    }
+
+    .store-summary-gas.gas-low .gas-value {
+      color: var(--color-warning, #f59e0b);
+    }
+
+    .store-summary-gas.gas-empty {
+      border-color: var(--color-error);
+      background: rgba(239, 68, 68, 0.08);
+    }
+
+    .store-summary-gas.gas-empty .gas-value {
+      color: var(--color-error);
+    }
+
+    /* ===== Product Table ===== */
+    .store-table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-xl);
+      background: var(--color-bg-card);
+    }
+
+    .store-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      table-layout: fixed;
+    }
+
+    .store-table th {
+      text-align: left;
+      padding: var(--space-5) var(--space-6);
+      font-size: var(--text-xs);
+      font-weight: 500;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--color-border-subtle);
+      white-space: nowrap;
+      user-select: none;
+      position: sticky;
+      top: 0;
+      background: var(--color-bg-card);
+      z-index: 2;
+    }
+
+    .store-table th.sortable {
+      cursor: pointer;
+      transition: color var(--transition-fast);
+    }
+
+    .store-table th.sortable:hover {
+      color: var(--color-text-secondary);
+    }
+
+    .store-table th .sort-icon {
+      display: inline-block;
+      width: 10px;
+      margin-left: 4px;
+      opacity: 0;
+      transition: opacity var(--transition-fast);
+      vertical-align: middle;
+    }
+
+    .store-table th.sorted .sort-icon {
+      opacity: 1;
+    }
+
+    .store-table th.sortable:hover .sort-icon {
+      opacity: 0.5;
+    }
+
+    /* Column widths */
+    .store-table th:nth-child(1) { width: 26%; }  /* Product */
+    .store-table th:nth-child(2) { width: 11%; }  /* Price */
+    .store-table th:nth-child(3) { width: 11%; }  /* Inventory */
+    .store-table th:nth-child(4) { width: 8%; }   /* Sold */
+    .store-table th:nth-child(5) { width: 12%; }  /* Revenue */
+    .store-table th:nth-child(6) { width: 8%; }   /* Type */
+    .store-table th:nth-child(7) { width: 12%; }  /* Actions */
+    .store-table th:nth-child(8) { width: 12%; }  /* On Sale */
+
+    .store-table td {
+      padding: var(--space-5) var(--space-6);
+      border-bottom: 1px solid var(--color-border-subtle);
+      font-size: var(--text-sm);
+      color: var(--color-text-secondary);
+      vertical-align: middle;
+    }
+
+    .store-table tbody tr {
+      transition: background var(--transition-fast);
+      cursor: pointer;
+    }
+
+    .store-table tbody tr:hover {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .store-table tbody tr.selected {
+      background: rgba(124, 92, 255, 0.06);
+    }
+
+    .store-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Product cell — swatch + name + description */
+    .store-product-cell {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+    }
+
+    .store-product-thumb {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-md);
+      flex-shrink: 0;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .store-product-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    /* Fallback swatch while snapshot loads */
+    .store-product-thumb .thumb-swatch {
+      width: 100%;
+      height: 100%;
+      border-radius: var(--radius-md);
+    }
+
+    .store-product-thumb .thumb-swatch.variant-red { background: radial-gradient(circle at 35% 35%, #c0392b, #8b1a1a); }
+    .store-product-thumb .thumb-swatch.variant-blue { background: radial-gradient(circle at 35% 35%, #5dade2, #2471a3); }
+    .store-product-thumb .thumb-swatch.variant-gold { background: radial-gradient(circle at 35% 35%, #f1c40f, #b7950b); }
+    .store-product-thumb .thumb-swatch.variant-purple { background: radial-gradient(circle at 35% 35%, #a855f7, #6b21a8); }
+    .store-product-thumb .thumb-swatch.variant-shadow { background: radial-gradient(circle at 35% 35%, #3f3f46, #09090b); }
+    .store-product-thumb .thumb-swatch.variant-unknown { background: radial-gradient(circle at 35% 35%, #71717a, #3f3f46); }
+
+    .store-product-info {
+      min-width: 0;
+    }
+
+    .store-product-name {
+      font-size: var(--text-md);
+      font-weight: 600;
+      color: var(--color-text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .store-product-desc {
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 1px;
+    }
+
+    /* Requirement tag (inline in product desc) */
+    .store-req-tag {
+      display: inline-block;
+      font-size: 9px;
+      font-weight: 600;
+      padding: 1px 4px;
+      border-radius: var(--radius-sm);
+      background: rgba(168, 85, 247, 0.1);
+      color: var(--color-swap);
+      vertical-align: middle;
+      margin-left: 2px;
+      letter-spacing: 0.02em;
+    }
+
+    /* Status badge */
+    .store-status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: var(--text-xs);
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: var(--radius-pill);
+    }
+
+    .store-status-badge .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    .store-status-badge.live {
+      background: rgba(34, 197, 94, 0.1);
+      color: var(--color-success);
+    }
+
+    .store-status-badge.live .status-dot {
+      background: var(--color-success);
+    }
+
+    .store-status-badge.hidden {
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--color-text-muted);
+    }
+
+    .store-status-badge.hidden .status-dot {
+      background: var(--color-text-muted);
+    }
+
+    /* Price cell */
+    .store-price {
+      font-variant-numeric: tabular-nums;
+      font-weight: 500;
+      color: var(--color-text-primary);
+    }
+
+    .store-price.free {
+      color: var(--color-success);
+    }
+
+    /* Inventory cell */
+    .store-inventory {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .store-inventory.low {
+      color: var(--color-warning);
+    }
+
+    .store-inventory.sold-out {
+      color: var(--color-error);
+      font-weight: 500;
+    }
+
+    /* Revenue cell */
+    .store-revenue {
+      font-variant-numeric: tabular-nums;
+      font-weight: 500;
+      color: var(--color-text-primary);
+    }
+
+    .store-revenue.zero {
+      color: var(--color-text-muted);
+      font-weight: 400;
+    }
+
+    /* Type tag */
+    .store-type-tag {
+      font-size: 10px;
+      font-weight: 500;
+      padding: 2px 6px;
+      border-radius: var(--radius-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .store-type-tag.skin { background: rgba(168, 85, 247, 0.12); color: var(--color-swap); }
+    .store-type-tag.free-skin { background: rgba(59, 130, 246, 0.12); color: var(--color-info); }
+    .store-type-tag.anim { background: rgba(245, 158, 11, 0.12); color: var(--color-warning); }
+
+    /* Inline toggle switch for table rows */
+    .store-inline-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .store-inline-toggle input[type="checkbox"] {
+      width: 28px;
+      height: 16px;
+      appearance: none;
+      background: var(--color-bg-elevated);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: 8px;
+      position: relative;
+      cursor: pointer;
+      transition: background var(--transition-fast), border-color var(--transition-fast);
+      flex-shrink: 0;
+      margin: 0;
+    }
+
+    .store-inline-toggle input[type="checkbox"]::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--color-text-muted);
+      transition: transform var(--transition-fast), background var(--transition-fast);
+    }
+
+    .store-inline-toggle input[type="checkbox"]:checked {
+      background: var(--color-success);
+      border-color: var(--color-success);
+    }
+
+    .store-inline-toggle input[type="checkbox"]:checked::after {
+      transform: translateX(12px);
+      background: #fff;
+    }
+
+    .store-inline-toggle input[type="checkbox"]:disabled {
+      opacity: 0.5;
+      cursor: wait;
+    }
+
+    .store-inline-toggle-label {
+      font-size: var(--text-xs);
+      font-weight: 500;
+    }
+
+    .store-inline-toggle-label.live {
+      color: var(--color-success);
+    }
+
+    .store-inline-toggle-label.hidden {
+      color: var(--color-text-muted);
+    }
+
+    .store-inline-toggle-label.pausing {
+      color: var(--color-warning);
+    }
+
+    /* Actions cell */
+    .store-actions {
+      display: flex;
+      gap: var(--space-2);
+      align-items: center;
+    }
+
+    .store-action-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      background: transparent;
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      padding: 0;
+      color: var(--color-text-muted);
+    }
+
+    .store-action-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .store-action-btn:hover {
+      background: var(--color-bg-elevated);
+      border-color: var(--color-border);
+      color: var(--color-text-primary);
+    }
+
+    .store-action-btn.delete:hover {
+      color: var(--color-error);
+      border-color: var(--color-error);
+    }
+
+    .store-action-btn:disabled {
+      opacity: 0.25;
+      cursor: not-allowed;
+    }
+
+    .store-action-btn:disabled:hover {
+      background: transparent;
+      border-color: var(--color-border-subtle);
+      color: var(--color-text-muted);
+    }
+
+    .store-action-btn.toggled-off {
+      opacity: 0.4;
+    }
+
+    .store-action-btn.toggled-off:hover {
+      opacity: 1;
+    }
+
+    /* Empty state */
+    .store-table-empty {
+      text-align: center;
+      padding: var(--space-16);
+      color: var(--color-text-muted);
+      font-size: var(--text-sm);
+    }
+
+    /* ===== Editor Drawer (right side) ===== */
+    .store-drawer-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(2px);
+      -webkit-backdrop-filter: blur(2px);
+      z-index: var(--z-overlay);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--transition-normal);
+    }
+
+    .store-drawer-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .store-drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 400px;
+      max-width: 90vw;
+      background: var(--color-bg-panel);
+      border-left: 1px solid var(--color-border-subtle);
+      z-index: var(--z-drawer);
+      transform: translateX(100%);
+      transition: transform var(--transition-normal);
+      display: flex;
+      flex-direction: column;
+      box-shadow: -8px 0 32px rgba(0, 0, 0, 0.4);
+    }
+
+    .store-drawer.open {
+      transform: translateX(0);
+    }
+
+    .store-drawer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-8) var(--space-10);
+      border-bottom: 1px solid var(--color-border-subtle);
+      flex-shrink: 0;
+    }
+
+    .store-drawer-title {
+      font-size: var(--text-md);
+      font-weight: 600;
+      color: var(--color-text-primary);
+    }
+
+    .store-drawer-id {
+      font-size: var(--text-xs);
+      font-family: var(--font-mono);
+      color: var(--color-text-muted);
+      margin-left: var(--space-3);
+    }
+
+    .store-drawer-close {
+      background: none;
+      border: none;
+      color: var(--color-text-muted);
+      cursor: pointer;
+      padding: var(--space-2);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color var(--transition-fast), background var(--transition-fast);
+    }
+
+    .store-drawer-close:hover {
+      color: var(--color-text-primary);
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .store-drawer-close svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .store-drawer-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--space-8) var(--space-10);
+    }
+
+    /* Reuse field styles from the old editor */
+    .store-field {
+      margin-bottom: var(--space-6);
+    }
+
+    .store-field label {
+      display: block;
+      font-size: var(--text-xs);
+      font-weight: 500;
+      color: var(--color-text-tertiary);
+      margin-bottom: var(--space-2);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .store-field input,
+    .store-field select,
+    .store-field textarea {
+      width: 100%;
+      box-sizing: border-box;
+      background: var(--color-bg-deep);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-md);
+      padding: var(--space-3) var(--space-4);
+      font-size: var(--text-sm);
+      color: var(--color-text-primary);
+      font-family: var(--font-sans);
+      transition: border-color var(--transition-fast);
+    }
+
+    .store-field input:focus,
+    .store-field select:focus,
+    .store-field textarea:focus {
+      outline: none;
+      border-color: var(--color-accent);
+    }
+
+    .store-field input::placeholder,
+    .store-field textarea::placeholder {
+      color: var(--color-text-muted);
+    }
+
+    .store-field textarea {
+      resize: vertical;
+      min-height: 60px;
+    }
+
+    .store-field select {
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      padding-right: 28px;
+    }
+
+    .store-field input[disabled],
+    .store-field select[disabled] {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .store-price-row {
+      display: grid;
+      grid-template-columns: 1fr 100px;
+      gap: var(--space-3);
+    }
+
+    .store-supply-row {
+      display: grid;
+      grid-template-columns: 1fr 80px;
+      gap: var(--space-3);
+      align-items: end;
+    }
+
+    .store-sold-display {
+      font-size: var(--text-sm);
+      color: var(--color-text-muted);
+      padding: var(--space-3) 0;
+      text-align: center;
+    }
+
+    /* Toggle switches */
+    .store-toggles {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+      margin-bottom: var(--space-6);
+    }
+
+    .store-toggle {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .store-toggle input[type="checkbox"] {
+      width: 32px;
+      height: 18px;
+      appearance: none;
+      background: var(--color-bg-elevated);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: 9px;
+      position: relative;
+      cursor: pointer;
+      transition: background var(--transition-fast);
+      flex-shrink: 0;
+    }
+
+    .store-toggle input[type="checkbox"]::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--color-text-muted);
+      transition: transform var(--transition-fast), background var(--transition-fast);
+    }
+
+    .store-toggle input[type="checkbox"]:checked {
+      background: var(--color-accent);
+      border-color: var(--color-accent);
+    }
+
+    .store-toggle input[type="checkbox"]:checked::after {
+      transform: translateX(14px);
+      background: var(--color-text-primary);
+    }
+
+    .store-toggle-label {
+      font-size: var(--text-sm);
+      color: var(--color-text-secondary);
+    }
+
+    /* Drawer footer actions */
+    .store-drawer-footer {
+      padding: var(--space-6) var(--space-10);
+      border-top: 1px solid var(--color-border-subtle);
+      display: flex;
+      gap: var(--space-3);
+      flex-shrink: 0;
+    }
+
+    .store-btn-save {
+      flex: 1;
+      background: var(--color-accent);
+      color: #fff;
+      border: none;
+      padding: var(--space-3) var(--space-6);
+      border-radius: var(--radius-md);
+      font-size: var(--text-sm);
+      font-weight: 600;
+      font-family: var(--font-sans);
+      cursor: pointer;
+      transition: background var(--transition-fast);
+    }
+
+    .store-btn-save:hover {
+      background: var(--color-accent-hover);
+    }
+
+    .store-btn-remove {
+      background: transparent;
+      color: var(--color-text-muted);
+      border: 1px solid var(--color-border-subtle);
+      padding: var(--space-3) var(--space-6);
+      border-radius: var(--radius-md);
+      font-size: var(--text-sm);
+      font-weight: 500;
+      font-family: var(--font-sans);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+
+    .store-btn-remove:hover {
+      color: var(--color-error);
+      border-color: var(--color-error);
+    }
+
+    .store-btn-remove:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    .store-btn-remove:disabled:hover {
+      color: var(--color-text-muted);
+      border-color: var(--color-border-subtle);
+    }
+
+    /* Status message */
+    .store-status {
+      font-size: var(--text-xs);
+      margin-top: var(--space-3);
+      min-height: 16px;
+      text-align: center;
+    }
+
+    .store-status.success { color: var(--color-success); }
+    .store-status.error { color: var(--color-error); }
+
+    /* Toast notification */
+    .store-toast {
+      position: fixed;
+      bottom: var(--space-10);
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--color-bg-elevated);
+      color: var(--color-text-primary);
+      font-size: var(--text-sm);
+      font-weight: 500;
+      padding: var(--space-4) var(--space-8);
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--color-border-subtle);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      z-index: 300;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .store-toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+      pointer-events: auto;
+    }
+    .store-toast.success { border-color: rgba(34, 197, 94, 0.3); }
+    .store-toast.error { border-color: rgba(239, 68, 68, 0.3); }
+    .store-toast .toast-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .store-toast.success .toast-dot { background: var(--color-success); }
+    .store-toast.error .toast-dot { background: var(--color-error); }
+
+    /* Product preview in drawer */
+    .store-product-preview {
+      width: 100%;
+      aspect-ratio: 4/3;
+      background: var(--color-bg-deep);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: var(--space-6);
+    }
+
+    .store-product-preview img {
+      width: 80%;
+      height: 80%;
+      object-fit: contain;
+    }
+
+    .store-product-preview .preview-loading {
+      color: var(--color-text-muted);
+      font-size: var(--text-xs);
+      font-family: var(--font-mono);
+    }
+
+    /* Product type optgroup styling */
+    .store-field select optgroup {
+      color: var(--color-text-muted);
+      font-style: normal;
+      font-weight: 600;
+      font-size: var(--text-xs);
+    }
+
+    /* Included animations tags */
+    .store-included-anims {
+      display: flex;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+      padding: var(--space-2) 0;
+    }
+
+    .store-included-anim {
+      font-size: var(--text-xs);
+      font-weight: 500;
+      padding: 3px 8px;
+      border-radius: var(--radius-pill);
+      background: rgba(34, 197, 94, 0.1);
+      color: var(--color-success);
+    }
+
+    /* ===== Drawer Tabs ===== */
+    .store-drawer-tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--color-border-subtle);
+      padding: 0 var(--space-10);
+      flex-shrink: 0;
+    }
+
+    .store-drawer-tab {
+      padding: var(--space-4) var(--space-6);
+      font-size: var(--text-sm);
+      font-weight: 500;
+      color: var(--color-text-muted);
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      transition: color var(--transition-fast), border-color var(--transition-fast);
+      font-family: var(--font-sans);
+      margin-bottom: -1px;
+    }
+
+    .store-drawer-tab:hover {
+      color: var(--color-text-secondary);
+    }
+
+    .store-drawer-tab.active {
+      color: var(--color-text-primary);
+      border-bottom-color: var(--color-accent);
+    }
+
+    .store-drawer-tab .tab-count {
+      font-size: 10px;
+      font-weight: 600;
+      background: var(--color-bg-elevated);
+      color: var(--color-text-muted);
+      padding: 1px 5px;
+      border-radius: var(--radius-pill);
+      margin-left: var(--space-2);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .store-drawer-tab.active .tab-count {
+      background: rgba(124, 92, 255, 0.15);
+      color: var(--color-accent);
+    }
+
+    .store-drawer-tab-panel {
+      display: none;
+    }
+
+    .store-drawer-tab-panel.active {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-6);
+    }
+
+    /* ===== Order History ===== */
+    .store-orders-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      background: var(--color-border-subtle);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .store-order-row {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: var(--space-4);
+      align-items: center;
+      padding: var(--space-4) var(--space-5);
+      background: var(--color-bg-deep);
+      font-size: var(--text-xs);
+    }
+
+    .store-order-main {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .store-order-agent {
+      font-weight: 600;
+      color: var(--color-text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .store-order-time {
+      color: var(--color-text-muted);
+      font-size: 10px;
+    }
+
+    .store-order-price {
+      color: var(--color-text-secondary);
+      font-family: var(--font-mono);
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .store-order-tx {
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-decoration: none;
+      transition: color var(--transition-fast);
+      white-space: nowrap;
+    }
+
+    .store-order-tx:hover {
+      color: var(--color-accent);
+    }
+
+    .store-orders-empty {
+      font-size: var(--text-sm);
+      color: var(--color-text-muted);
+      padding: var(--space-10);
+      text-align: center;
+    }
+
+    .store-orders-summary {
+      display: flex;
+      gap: var(--space-8);
+      padding: var(--space-5) 0;
+      border-bottom: 1px solid var(--color-border-subtle);
+      margin-bottom: var(--space-4);
+    }
+
+    .store-orders-stat {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .store-orders-stat-value {
+      font-size: var(--text-md);
+      font-weight: 600;
+      color: var(--color-text-primary);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .store-orders-stat-label {
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* ===== Add Skin Modal ===== */
+    .store-modal-form {
+      text-align: left;
+    }
+
+    .store-modal-form .store-field {
+      margin-bottom: var(--space-4);
+    }
+
+    /* ===== Responsive ===== */
+    @media (max-width: 1024px) {
+      .store-table th:nth-child(5),
+      .store-table td:nth-child(5) { display: none; } /* Hide Revenue */
+      .store-table th:nth-child(6),
+      .store-table td:nth-child(6) { display: none; } /* Hide Type */
+
+      .store-table th:nth-child(1) { width: 32%; }
+      .store-table th:nth-child(2) { width: 14%; }
+      .store-table th:nth-child(3) { width: 14%; }
+      .store-table th:nth-child(4) { width: 10%; }
+      .store-table th:nth-child(7) { width: 15%; }
+      .store-table th:nth-child(8) { width: 15%; }
+    }
+
+    @media (max-width: 768px) {
+      .store-page {
+        padding: var(--space-4) var(--space-8);
+      }
+
+      .store-summary {
+        flex-wrap: wrap;
+        gap: var(--space-6);
+      }
+
+      .store-table th:nth-child(3),
+      .store-table td:nth-child(3) { display: none; } /* Hide Inventory */
+      .store-table th:nth-child(4),
+      .store-table td:nth-child(4) { display: none; } /* Hide Sold */
+
+      .store-table th:nth-child(1) { width: 38%; }
+      .store-table th:nth-child(2) { width: 16%; }
+      .store-table th:nth-child(7) { width: 20%; }
+      .store-table th:nth-child(8) { width: 26%; }
+
+      .store-drawer { width: 100%; max-width: 100vw; }
+    }
+
+    /* ===== Contract Tab ===== */
+    .contract-loading {
+      font-size: var(--text-sm);
+      color: var(--color-text-muted);
+      padding: var(--space-6);
+      text-align: center;
+    }
+
+    /* ===== Contract Tab — Analytics-style stat cards ===== */
+    .contract-status-badge {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: var(--space-1) var(--space-3);
+      border-radius: var(--radius-full);
+    }
+    .contract-status-badge.deployed { background: rgba(34, 197, 94, 0.15); color: var(--color-success); }
+    .contract-status-badge.pending { background: rgba(234, 179, 8, 0.15); color: #eab308; }
+    .contract-status-badge.failed { background: rgba(239, 68, 68, 0.15); color: var(--color-error); }
+
+    .contract-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-6);
+    }
+
+    .contract-address {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--color-text-tertiary);
+    }
+    .contract-address a {
+      color: var(--color-text-tertiary);
+      text-decoration: none;
+      transition: color var(--transition-fast);
+    }
+    .contract-address a:hover { color: var(--color-text-primary); }
+
+    .contract-stats-row {
+      display: flex;
+      gap: 0;
+      margin-bottom: var(--space-6);
+      padding-bottom: var(--space-6);
+      border-bottom: 1px solid var(--color-border-subtle);
+    }
+
+    .contract-stat {
+      flex: 1;
+      min-width: 0;
+      padding: 0 var(--space-4);
+      border-right: 1px solid var(--color-border);
+    }
+    .contract-stat:first-child { padding-left: 0; }
+    .contract-stat:last-child { border-right: none; padding-right: 0; }
+
+    .contract-stat-label {
+      font-family: var(--font-sans);
+      font-size: var(--text-xs);
+      font-weight: 500;
+      color: var(--color-text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: var(--space-1);
+    }
+
+    .contract-stat-value {
+      font-family: var(--font-mono);
+      font-size: var(--text-lg);
+      font-weight: 700;
+      color: var(--color-text-primary);
+      line-height: 1.2;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .contract-stat-sub {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      margin-top: 2px;
+    }
+
+    .contract-actions {
+      display: flex;
+      gap: var(--space-3);
+    }
+
+    .contract-action-btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
+      padding: var(--space-3) var(--space-4);
+      border: 1px solid var(--color-border);
+      border-radius: 0;
+      background: transparent;
+      color: var(--color-text-secondary);
+      font-family: var(--font-sans);
+      font-size: var(--text-sm);
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+    .contract-action-btn:hover {
+      background: var(--color-bg-elevated);
+      color: var(--color-text-primary);
+      border-color: rgba(113, 113, 122, 0.5);
+    }
+    .contract-action-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+    .contract-action-btn:disabled:hover {
+      background: transparent;
+      color: var(--color-text-secondary);
+      border-color: var(--color-border);
+    }
+
+    .btn-spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--color-border);
+      border-top-color: var(--color-text-primary);
+      border-radius: 50%;
+      animation: btn-spin 0.6s linear infinite;
+      margin-right: var(--space-2);
+      vertical-align: middle;
+    }
+
+    @keyframes btn-spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .contract-line-items {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      padding: var(--space-4) 0;
+    }
+    .contract-line-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: var(--text-sm);
+    }
+    .contract-line-label {
+      color: var(--color-text-muted);
+      font-weight: 500;
+      text-transform: uppercase;
+      font-size: var(--text-xs);
+      letter-spacing: 0.05em;
+    }
+    .contract-line-value {
+      font-weight: 600;
+      font-size: var(--text-sm);
+    }
+    .contract-line-toggle {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      cursor: pointer;
+    }
+    .contract-line-toggle input[type="checkbox"] {
+      position: relative;
+      width: 32px;
+      height: 18px;
+      appearance: none;
+      -webkit-appearance: none;
+      background: var(--color-border);
+      border-radius: 9px;
+      cursor: pointer;
+      transition: background var(--transition-fast);
+    }
+    .contract-line-toggle input[type="checkbox"]::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 14px;
+      height: 14px;
+      background: var(--color-text-primary);
+      border-radius: 50%;
+      transition: transform var(--transition-fast);
+    }
+    .contract-line-toggle input[type="checkbox"]:checked {
+      background: var(--color-success);
+    }
+    .contract-line-toggle input[type="checkbox"]:checked::after {
+      transform: translateX(14px);
+    }
+    .contract-line-toggle input[type="checkbox"]:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .contract-empty {
+      padding: var(--space-8) var(--space-4);
+      text-align: center;
+    }
+    .contract-empty p {
+      color: var(--color-text-muted);
+      font-size: var(--text-sm);
+      margin: var(--space-3) 0 var(--space-6);
+    }
+  </style>
+</head>
+<body>
+  <div class="admin-nav">
+    <a href="/" class="admin-nav-logo"><img src="/clawnads-logo-white.svg" alt="Clawnads"></a>
+    <span class="admin-nav-sep">&middot;</span>
+    <a href="/analytics" class="admin-nav-link">Analytics</a>
+    <span class="admin-nav-sep">&middot;</span>
+    <a href="/sim" class="admin-nav-link">Sim</a>
+    <span class="admin-nav-sep">&middot;</span>
+    <a href="/character" class="admin-nav-link">Character</a>
+    <span class="admin-nav-sep">&middot;</span>
+    <a href="/invites" class="admin-nav-link">Invites</a>
+    <span class="admin-nav-sep">&middot;</span>
+    <a href="/elements" class="admin-nav-link">Elements</a>
+    <span class="admin-nav-sep">&middot;</span>
+    <a href="/store" class="admin-nav-link">Store</a>
+    <span class="admin-nav-sep">&middot;</span>
+    <a href="/admin/store-manage" class="admin-nav-link admin-nav-active">Store Ops</a>
+    <span class="admin-nav-sep">&middot;</span>
+    <a href="/competitions" class="admin-nav-link">Competitions</a>
+  </div>
+  <div class="anav-profile" id="admin-nav-profile"></div>
+
+  <main class="container admin-container">
+    <!-- Login State -->
+    <div id="login-view" style="display:none;">
+      <div class="admin-login-card">
+        <div class="admin-login-icon">
+          <img src="/happy-crab-blue.svg" alt="" style="width:96px;height:auto;">
+        </div>
+        <h2 class="admin-login-title">Admin Access</h2>
+        <p class="admin-login-desc">Sign in with your X account to manage the store.</p>
+        <a href="/admin/auth/login" class="btn btn-x-login">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="margin-right:8px">
+            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+          </svg>
+          Sign in with X
+        </a>
+      </div>
+    </div>
+
+    <!-- Authenticated State -->
+    <div id="admin-view" style="display:none;">
+      <div class="store-page">
+        <div class="store-header">
+          <div class="store-header-left">
+            <h2>Store Ops</h2>
+            <p class="store-header-subtitle">Manage skins &amp; cosmetics</p>
+          </div>
+          <div class="store-header-actions">
+            <button class="admin-btn" id="add-skin-btn">
+              <i data-lucide="plus" class="admin-btn-icon"></i>
+              Add Product
+            </button>
+          </div>
+        </div>
+
+        <!-- Summary stats -->
+        <div class="store-summary" id="store-summary"></div>
+
+        <!-- Product table -->
+        <div class="store-table-wrap">
+          <table class="store-table">
+            <thead>
+              <tr>
+                <th class="sortable" data-sort="name">Product <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-sort="price">Price <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-sort="inventory">Inventory <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-sort="sold">Sold <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-sort="revenue">Revenue <span class="sort-icon">↕</span></th>
+                <th>Type</th>
+                <th>Actions</th>
+                <th>On Sale</th>
+              </tr>
+            </thead>
+            <tbody id="store-tbody">
+              <tr><td colspan="8" class="store-table-empty">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Toast -->
+  <div class="store-toast" id="store-toast"></div>
+
+  <!-- Editor Drawer -->
+  <div class="store-drawer-overlay" id="drawer-overlay"></div>
+  <div class="store-drawer" id="store-drawer">
+    <div class="store-drawer-header">
+      <div>
+        <span class="store-drawer-title">Edit Product</span>
+        <span class="store-drawer-id" id="drawer-id"></span>
+      </div>
+      <button class="store-drawer-close" id="drawer-close">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="store-drawer-tabs" id="drawer-tabs"></div>
+    <div class="store-drawer-body" id="drawer-body"></div>
+    <div class="store-drawer-footer" id="drawer-footer"></div>
+  </div>
+
+  <!-- Add Skin Modal -->
+  <div class="modal-overlay" id="add-modal" style="display:none;">
+    <div class="modal" style="max-width:420px;">
+      <button class="modal-close-x" id="add-modal-close">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-icon">
+        <i data-lucide="plus-circle" style="width:32px;height:32px;color:var(--color-accent)"></i>
+      </div>
+      <div class="modal-title">Add Product</div>
+      <div class="modal-subtitle">Create a new product for the store catalog.</div>
+      <div class="store-modal-form">
+        <div class="store-field">
+          <label for="new-type">Type</label>
+          <select id="new-type">
+            <option value="skin" selected>Skin</option>
+            <option value="animation">Animation</option>
+          </select>
+        </div>
+        <div class="store-field" id="new-variant-field">
+          <label for="new-variant">Skin</label>
+          <select id="new-variant"></select>
+        </div>
+        <div class="store-field" id="new-anim-field" style="display:none;">
+          <label for="new-anim">Animation</label>
+          <select id="new-anim">
+            <option value="">Select animation...</option>
+          </select>
+        </div>
+        <div class="store-field">
+          <label for="new-name">Display Name</label>
+          <input type="text" id="new-name" placeholder="Auto-generated from selection">
+        </div>
+        <div class="store-field">
+          <label for="new-desc">Description</label>
+          <input type="text" id="new-desc" placeholder="Short description (auto-populated)">
+        </div>
+        <div class="store-field">
+          <label>Price</label>
+          <div class="store-price-row">
+            <input type="text" id="new-price" placeholder="0" value="0">
+            <select id="new-currency">
+              <option value="USDC" selected>USDC</option>
+              <option value="MON">MON</option>
+            </select>
+          </div>
+          <div id="new-nft-note" style="display:none;margin-top:var(--space-2);padding:var(--space-3);background:rgba(138,92,246,0.1);border-radius:var(--radius-lg);font-size:var(--text-xs);color:var(--color-text-secondary);">
+            <span style="color:#a78bfa;">⬡</span> This will deploy an on-chain NFT contract.
+          </div>
+        </div>
+        <div class="store-field">
+          <label>Supply</label>
+          <div class="store-supply-row">
+            <input type="number" id="new-supply" value="1" min="-1" step="1" title="-1 = unlimited">
+            <span style="font-size:10px;color:var(--color-text-muted);align-self:center;">-1 = unlimited</span>
+          </div>
+        </div>
+        <div class="store-toggles" style="margin-top:var(--space-2)">
+          <label class="store-toggle">
+            <input type="checkbox" id="new-featured">
+            <span class="store-toggle-label">Featured (shows banner on card)</span>
+          </label>
+          <label class="store-toggle">
+            <input type="checkbox" id="new-requires-verification">
+            <span class="store-toggle-label">Requires x402 verification</span>
+          </label>
+          <label class="store-toggle">
+            <input type="checkbox" id="new-transferable" checked>
+            <span class="store-toggle-label">Transferable (can resell NFT)</span>
+          </label>
+        </div>
+      </div>
+      <div id="add-modal-error" class="store-status error" style="margin-bottom:var(--space-4)"></div>
+      <div class="modal-actions">
+        <button class="admin-btn" id="add-modal-cancel">Cancel</button>
+        <button class="store-btn-save" id="add-modal-confirm" style="flex:none;padding:var(--space-3) var(--space-10);">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div class="modal-overlay" id="delete-modal" style="display:none;">
+    <div class="modal" style="max-width:380px;">
+      <button class="modal-close-x" id="delete-modal-close">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-icon">
+        <img src="/sad-crab.svg" alt="" style="width:64px;height:64px;opacity:0.75;">
+      </div>
+      <div class="modal-title">Delete Product?</div>
+      <div class="modal-subtitle">
+        <strong id="delete-modal-name"></strong> will be permanently removed from the store. This cannot be undone.
+      </div>
+      <div class="modal-actions">
+        <button class="admin-btn" id="delete-modal-cancel">Cancel</button>
+        <button class="store-btn-remove" id="delete-modal-confirm" style="padding:var(--space-3) var(--space-8);border-color:var(--color-error);color:var(--color-error);">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLobster } from '/character/gltf-lobster.js';
+
+    // ===== Product catalog — hierarchical by variant =====
+    // Skins come with default anims (idle, walk, run). Add-on anims are variant-specific.
+    const VARIANTS = {
+      red:  { label: 'Red Lobster',    storeName: 'Classic Red',    storeDesc: 'The original.',                  anims: [
+        { id: 'dance-funny2', label: 'Funny Dance 2' },
+      ]},
+      blue: { label: 'Blue Lobster',   storeName: 'Ocean Blue',     storeDesc: 'Cool and collected.',             anims: [
+        { id: 'dance-boom',    label: 'Boom Dance' },
+        { id: 'dance-funny1',  label: 'Funny Dance 1' },
+        { id: 'dance-funny3',  label: 'Funny Dance 3' },
+        { id: 'dance-hiphop',  label: 'Hip Hop' },
+        { id: 'dance-hiphop3', label: 'Hip Hop 3' },
+      ]},
+      gold: { label: 'Gold Lobster',   storeName: 'Golden Shell',   storeDesc: 'Rare and radiant.',               anims: [
+        { id: 'dance-boom',      label: 'Boom Dance' },
+        { id: 'dance-allnight',  label: 'All Night' },
+        { id: 'dance-cardio',    label: 'Cardio' },
+        { id: 'dance-cherish',   label: 'Cherish' },
+        { id: 'dance-superlove', label: 'Super Love' },
+        { id: 'dance-squat',     label: 'Squat' },
+      ]},
+      purple: { label: 'Purple Lobster', storeName: 'Mystic Monad', storeDesc: 'Cosmic energy in every step.',   anims: [
+        { id: 'dance-funny1',   label: 'Funny Dance 1' },
+        { id: 'dance-funny2',   label: 'Funny Dance 2' },
+        { id: 'dance-funny3',   label: 'Funny Dance 3' },
+        { id: 'dance-hiphop',   label: 'Hip Hop' },
+        { id: 'dance-jazz',     label: 'Jazz' },
+        { id: 'dance-shakeoff', label: 'Shake It Off' },
+        { id: 'dance-lovepop',  label: 'Love Pop' },
+      ]},
+      shadow: { label: 'Shadow Lobster', storeName: 'Shadow',       storeDesc: 'A dark silhouette from the deep.', anims: [] },
+    };
+
+    // Parse a product ID like "skin:red" or "anim:blue:dance-boom"
+    function parseProductId(productId) {
+      if (!productId) return { type: '', variant: '', animId: '' };
+      const parts = productId.split(':');
+      if (parts[0] === 'skin') return { type: 'skin', variant: parts[1] || '', animId: '' };
+      if (parts[0] === 'anim') return { type: 'anim', variant: parts[1] || '', animId: parts[2] || '' };
+      return { type: '', variant: '', animId: '' };
+    }
+
+    function getProductVariant(productId) {
+      const p = parseProductId(productId);
+      return p.variant || null;
+    }
+
+    // Build the cascading product binding HTML for the drawer
+    function buildProductBindingHTML(productId) {
+      const parsed = parseProductId(productId);
+
+      // Step 1: Product type
+      let html = `
+        <div class="store-field">
+          <label>Product Type</label>
+          <select id="edit-product-type">
+            <option value="" ${!parsed.type ? 'selected' : ''}>— None —</option>
+            <option value="skin" ${parsed.type === 'skin' ? 'selected' : ''}>Skin (Character)</option>
+            <option value="anim" ${parsed.type === 'anim' ? 'selected' : ''}>Add-on Animation</option>
+          </select>
+        </div>
+      `;
+
+      // Step 2: Variant picker (shown for both skin & anim)
+      if (parsed.type === 'skin' || parsed.type === 'anim') {
+        html += `
+          <div class="store-field">
+            <label>Lobster Variant</label>
+            <select id="edit-product-variant">
+              ${Object.entries(VARIANTS).map(([v, def]) =>
+                `<option value="${v}" ${parsed.variant === v ? 'selected' : ''}>${def.label}</option>`
+              ).join('')}
+            </select>
+          </div>
+        `;
+      }
+
+      // Skin: show included animations info
+      if (parsed.type === 'skin') {
+        html += `
+          <div class="store-field">
+            <label>Included Animations</label>
+            <div class="store-included-anims">
+              <span class="store-included-anim">Idle</span>
+              <span class="store-included-anim">Walk</span>
+              <span class="store-included-anim">Run</span>
+            </div>
+          </div>
+        `;
+      }
+
+      // Anim: show animation picker filtered to selected variant
+      if (parsed.type === 'anim') {
+        const v = parsed.variant || 'red';
+        const availableAnims = VARIANTS[v]?.anims || [];
+        html += `
+          <div class="store-field">
+            <label>Animation</label>
+            <select id="edit-product-anim">
+              <option value="">— Select animation —</option>
+              ${availableAnims.map(a =>
+                `<option value="${a.id}" ${parsed.animId === a.id ? 'selected' : ''}>${a.label}</option>`
+              ).join('')}
+            </select>
+          </div>
+        `;
+      }
+
+      return html;
+    }
+
+    // Read the cascading selects and build a product ID string
+    function readProductId() {
+      const typeEl = document.getElementById('edit-product-type');
+      if (!typeEl) return '';
+      const type = typeEl.value;
+      if (!type) return '';
+
+      const variantEl = document.getElementById('edit-product-variant');
+      const variant = variantEl ? variantEl.value : 'red';
+
+      if (type === 'skin') return `skin:${variant}`;
+
+      if (type === 'anim') {
+        const animEl = document.getElementById('edit-product-anim');
+        const animId = animEl ? animEl.value : '';
+        if (!animId) return ''; // no animation selected yet
+        return `anim:${variant}:${animId}`;
+      }
+
+      return '';
+    }
+
+    // ===== 3D Snapshot Renderer =====
+    const SNAP_SIZE = 256;
+    let snapRenderer, snapScene, snapCamera;
+    const snapshotCache = {};
+
+    function initSnapRenderer() {
+      snapRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      snapRenderer.setSize(SNAP_SIZE, SNAP_SIZE);
+      snapRenderer.setPixelRatio(2);
+      snapRenderer.outputColorSpace = THREE.SRGBColorSpace;
+      snapRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+      snapRenderer.toneMappingExposure = 1.2;
+      snapRenderer.setClearColor(0x000000, 0);
+
+      snapScene = new THREE.Scene();
+      snapScene.add(new THREE.AmbientLight('#4a3a30', 0.6));
+
+      const key = new THREE.DirectionalLight('#ffeedd', 1.4);
+      key.position.set(2, 4, 3);
+      snapScene.add(key);
+
+      const fill = new THREE.DirectionalLight('#88aacc', 0.4);
+      fill.position.set(-3, 2, 1);
+      snapScene.add(fill);
+
+      const rim = new THREE.DirectionalLight('#ffffff', 0.6);
+      rim.position.set(-1, 3, -3);
+      snapScene.add(rim);
+
+      snapScene.add(new THREE.HemisphereLight('#1a1a2e', '#0a0a0c', 0.3));
+
+      snapCamera = new THREE.PerspectiveCamera(28, 1, 0.1, 50);
+      snapCamera.position.set(0.45, 0.55, 1.8);
+      snapCamera.lookAt(0, 0.38, 0);
+    }
+
+    async function renderSnapshot(variant) {
+      if (!snapRenderer) initSnapRenderer();
+
+      // Shadow variant needs a visible background (black on transparent = invisible)
+      if (variant === 'shadow') {
+        snapRenderer.setClearColor(0x18181b, 1);
+      } else {
+        snapRenderer.setClearColor(0x000000, 0);
+      }
+
+      await GLTFLobster.preload('/models', variant);
+      const lobster = GLTFLobster.createSync({ variant });
+      snapScene.add(lobster.group);
+
+      if (lobster.groundRing) lobster.groundRing.visible = false;
+
+      lobster.tick(0.016);
+      lobster.tick(0.016);
+      lobster.tick(0.016);
+
+      lobster.group.rotation.y = -0.35;
+
+      snapRenderer.render(snapScene, snapCamera);
+      const dataUrl = snapRenderer.domElement.toDataURL('image/png');
+
+      snapScene.remove(lobster.group);
+      lobster.dispose();
+
+      return dataUrl;
+    }
+
+    async function getSnapshot(variant) {
+      if (snapshotCache[variant]) return snapshotCache[variant];
+      const url = await renderSnapshot(variant);
+      snapshotCache[variant] = url;
+      return url;
+    }
+
+    // Render snapshots for all variants, then inject into table thumbs
+    async function renderAllSnapshots() {
+      const variants = ['red', 'blue', 'gold', 'purple', 'shadow'];
+      for (const v of variants) {
+        await getSnapshot(v);
+      }
+      // Inject into all existing thumb containers
+      document.querySelectorAll('.store-product-thumb[data-variant]').forEach(el => {
+        const v = el.dataset.variant;
+        if (snapshotCache[v]) {
+          el.innerHTML = `<img src="${snapshotCache[v]}" alt="${v}">`;
+        }
+      });
+      // Cleanup renderer
+      if (snapRenderer) {
+        snapRenderer.dispose();
+        snapRenderer = null;
+      }
+    }
+
+    // ===== Toast =====
+    let toastTimer = null;
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById('store-toast');
+      toast.className = 'store-toast ' + type;
+      toast.innerHTML = `<span class="toast-dot"></span>${esc(message)}`;
+      toast.classList.add('show');
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    // ===== State =====
+    let skins = {};
+    let selectedSkinId = null;
+    let sortField = null;
+    let sortDir = 'asc';
+
+    // Expose to inline onclick handlers
+    window.openDrawer = openDrawer;
+    window.closeDrawer = closeDrawer;
+    window.saveSkin = saveSkin;
+    window.removeSkin = removeSkin;
+    window.toggleOnSale = toggleOnSale;
+    window.toggleVisibility = toggleVisibility;
+
+    // ===== Init =====
+    async function init() {
+      const r = await fetch('/admin/api/session');
+      const data = await r.json();
+      if (data.authenticated) {
+        document.getElementById('admin-view').style.display = '';
+        document.getElementById('login-view').style.display = 'none';
+        await Promise.all([loadSkins(), fetchMonPrice()]);
+        renderSummary(); // re-render with MON price
+        renderAllSnapshots(); // fire and forget — injects after render
+      } else {
+        document.getElementById('login-view').style.display = '';
+        document.getElementById('admin-view').style.display = 'none';
+      }
+    }
+
+    // ===== Load All Skins =====
+    async function loadSkins() {
+      try {
+        const r = await fetch('/admin/api/store/skins');
+        const data = await r.json();
+        if (data.success) {
+          skins = data.skins;
+          renderSummary();
+          renderTable();
+          if (selectedSkinId && skins[selectedSkinId]) {
+            renderDrawer(selectedSkinId);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load skins:', err);
+      }
+    }
+
+    // ===== MON price for revenue estimate =====
+    let monPriceUsd = 0;
+    async function fetchMonPrice() {
+      try {
+        const res = await fetch('/tokens/prices');
+        const data = await res.json();
+        if (data.prices?.MON?.priceUSDC) monPriceUsd = parseFloat(data.prices.MON.priceUSDC);
+      } catch (e) {
+        try {
+          const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=monad&vs_currencies=usd');
+          const data = await res.json();
+          if (data.monad?.usd) monPriceUsd = data.monad.usd;
+        } catch (_) {}
+      }
+    }
+
+    // ===== Summary Stats =====
+    function renderSummary() {
+      const entries = Object.values(skins);
+      const totalProducts = entries.length;
+      const liveProducts = entries.filter(s => s.visible).length;
+      const totalSold = entries.reduce((sum, s) => sum + (s.sold || 0), 0);
+
+      // Accumulate revenue per currency (in human units)
+      let monRevenue = 0;
+      let usdcRevenue = 0;
+      for (const s of entries) {
+        if (s.free || !s.sold) continue;
+        const price = parseFloat(s.price || '0');
+        if (s.currency === 'USDC') {
+          usdcRevenue += (s.sold * price) / 1e6;
+        } else {
+          monRevenue += (s.sold * price) / 1e18;
+        }
+      }
+
+      // Top-line: USD estimate
+      const monUsdValue = monPriceUsd > 0 ? monRevenue * monPriceUsd : 0;
+      const totalUsd = usdcRevenue + monUsdValue;
+      const usdDisplay = totalUsd > 0 ? '$' + totalUsd.toFixed(2) : '$0.00';
+
+      document.getElementById('store-summary').innerHTML = `
+        <div class="store-summary-stat">
+          <span class="store-summary-value">${totalProducts}</span>
+          <span class="store-summary-label">Products</span>
+        </div>
+        <div class="store-summary-stat">
+          <span class="store-summary-value">${liveProducts}</span>
+          <span class="store-summary-label">Live</span>
+        </div>
+        <div class="store-summary-stat">
+          <span class="store-summary-value">${totalSold}</span>
+          <span class="store-summary-label">Total Sold</span>
+        </div>
+        <div class="store-summary-stat">
+          <span class="store-summary-value">${usdDisplay}</span>
+          <span class="store-summary-label">Revenue (est.)</span>
+        </div>
+        <div class="store-summary-stat" id="treasury-stat">
+          <span class="store-summary-value">—</span>
+          <span class="store-summary-label">Treasury</span>
+        </div>
+        <div class="store-summary-gas" id="deployer-gas" title="Deployer wallet gas balance">
+          <span class="gas-icon">⛽</span>
+          <span class="gas-value">—</span>
+        </div>
+      `;
+
+      // Fetch treasury balance and deployer gas
+      loadTreasuryBalance();
+      loadDeployerGas();
+    }
+
+    async function loadDeployerGas() {
+      const el = document.getElementById('deployer-gas');
+      if (!el) return;
+      try {
+        const r = await fetch('/admin/api/store/deployer');
+        const data = await r.json();
+        if (!data.success || !data.deployer) {
+          el.querySelector('.gas-value').textContent = 'No wallet';
+          return;
+        }
+        const bal = parseFloat(data.deployer.balance);
+        const display = bal < 0.01 ? '0' : bal < 1 ? bal.toFixed(3) : bal.toFixed(1);
+        el.querySelector('.gas-value').textContent = `${display} MON`;
+        el.title = `Deployer: ${data.deployer.address}\nBalance: ${data.deployer.balance} MON`;
+        el.classList.remove('gas-low', 'gas-empty');
+        if (bal < 0.01) el.classList.add('gas-empty');
+        else if (bal < 1) el.classList.add('gas-low');
+      } catch (err) {
+        el.querySelector('.gas-value').textContent = '?';
+      }
+    }
+
+    async function loadTreasuryBalance() {
+      const el = document.getElementById('treasury-stat');
+      if (!el) return;
+      try {
+        const r = await fetch('/admin/api/store/treasury');
+        const data = await r.json();
+        const mon = parseFloat(data.monBalance || '0');
+        const usdc = parseFloat(data.usdcBalance || '0');
+        const monUsd = monPriceUsd > 0 ? mon * monPriceUsd : 0;
+        const totalUsd = usdc + monUsd;
+        const valueEl = el.querySelector('.store-summary-value');
+        valueEl.textContent = totalUsd > 0 ? '$' + totalUsd.toFixed(2) : '$0.00';
+        // Build tooltip breakdown
+        const parts = [];
+        if (mon > 0) parts.push(`${mon.toFixed(2)} MON` + (monUsd > 0 ? ` (~$${monUsd.toFixed(2)})` : ''));
+        if (usdc > 0) parts.push(`${usdc.toFixed(2)} USDC`);
+        if (data.address) parts.push(data.address);
+        el.title = parts.join('\n');
+      } catch (_) {}
+    }
+
+    // ===== Revenue Helpers =====
+    function calcRevenue(skin) {
+      const sold = skin.sold || 0;
+      if (sold === 0 || skin.free) return 0;
+      const price = parseFloat(skin.price || '0');
+      return sold * price;
+    }
+
+    function formatRevenue(skin) {
+      const sold = skin.sold || 0;
+      if (sold === 0 || skin.free) return { text: '—', zero: true };
+      const price = parseFloat(skin.price || '0');
+      if (skin.currency === 'USDC') {
+        const usdc = (sold * price) / 1e6;
+        return { text: usdc.toFixed(2) + ' USDC', zero: false };
+      } else {
+        const mon = (sold * price) / 1e18;
+        return { text: mon.toFixed(2) + ' MON', zero: false };
+      }
+    }
+
+    // formatRevenueTotal removed — revenue now split by currency in renderSummary()
+
+    // ===== Render Table =====
+    function renderTable() {
+      const tbody = document.getElementById('store-tbody');
+      let entries = Object.entries(skins);
+
+      if (entries.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="store-table-empty">No products in catalog</td></tr>';
+        return;
+      }
+
+      // Sort
+      if (sortField) {
+        entries.sort(([aId, a], [bId, b]) => {
+          let av, bv;
+          switch (sortField) {
+            case 'name': av = (a.name || '').toLowerCase(); bv = (b.name || '').toLowerCase(); break;
+            case 'status': av = a.visible ? 1 : 0; bv = b.visible ? 1 : 0; break;
+            case 'price': av = parseFloat(a.price || '0'); bv = parseFloat(b.price || '0'); break;
+            case 'inventory':
+              av = (a.supply === -1 || a.supply === undefined) ? Infinity : a.supply - (a.sold || 0);
+              bv = (b.supply === -1 || b.supply === undefined) ? Infinity : b.supply - (b.sold || 0);
+              break;
+            case 'sold': av = a.sold || 0; bv = b.sold || 0; break;
+            case 'revenue': av = calcRevenue(a); bv = calcRevenue(b); break;
+            default: return 0;
+          }
+          if (av < bv) return sortDir === 'asc' ? -1 : 1;
+          if (av > bv) return sortDir === 'asc' ? 1 : -1;
+          return 0;
+        });
+      }
+
+      tbody.innerHTML = entries.map(([id, skin]) => {
+        const variant = skin.variant || 'red';
+        const variantClass = ['red', 'blue', 'gold', 'purple', 'shadow'].includes(variant) ? `variant-${variant}` : 'variant-unknown';
+        const isSelected = id === selectedSkinId;
+        const cachedSnap = snapshotCache[variant];
+
+        // On Sale (onSale = purchasable via API; fallback to visible for legacy data)
+        const isOnSale = skin.onSale !== undefined ? skin.onSale : skin.visible;
+        const saleClass = isOnSale ? 'live' : 'hidden';
+        const saleText = isOnSale ? 'On Sale' : 'Off Sale';
+
+        // Price
+        const priceText = skin.free ? 'FREE' : (skin.priceDisplay || skin.price);
+        const priceClass = skin.free ? 'free' : '';
+
+        // Inventory
+        const supply = skin.supply !== undefined ? skin.supply : -1;
+        const sold = skin.sold || 0;
+        let inventoryText, inventoryClass = '';
+        if (skin.free || supply === -1) {
+          inventoryText = '∞';
+        } else {
+          const remaining = supply - sold;
+          inventoryText = `${remaining} left`;
+          if (remaining <= 0) { inventoryClass = 'sold-out'; inventoryText = 'Sold out'; }
+          else if (remaining <= 5) inventoryClass = 'low';
+        }
+
+        // Revenue
+        const rev = formatRevenue(skin);
+
+        // Type — skin or anim
+        const productId = skin.product || '';
+        const parsedProduct = parseProductId(productId);
+        let typeTag;
+        if (parsedProduct.type === 'anim') {
+          typeTag = '<span class="store-type-tag anim">Anim</span>';
+        } else {
+          typeTag = '<span class="store-type-tag skin">Skin</span>';
+        }
+
+        // Thumbnail — use snapshot if available, else fallback swatch
+        const thumbInner = cachedSnap
+          ? `<img src="${cachedSnap}" alt="${variant}">`
+          : `<div class="thumb-swatch ${variantClass}"></div>`;
+
+        return `
+          <tr class="${isSelected ? 'selected' : ''}" data-id="${id}" onclick="openDrawer('${id}')">
+            <td>
+              <div class="store-product-cell">
+                <div class="store-product-thumb" data-variant="${variant}">${thumbInner}</div>
+                <div class="store-product-info">
+                  <div class="store-product-name">${esc(skin.name)}</div>
+                  <div class="store-product-desc">${esc(skin.description || '')}${skin.requiresVerification ? ' <span class="store-req-tag">x402</span>' : ''}</div>
+                </div>
+              </div>
+            </td>
+            <td><span class="store-price ${priceClass}">${esc(priceText)}</span></td>
+            <td><span class="store-inventory ${inventoryClass}">${inventoryText}</span></td>
+            <td style="font-variant-numeric:tabular-nums">${sold}</td>
+            <td><span class="store-revenue ${rev.zero ? 'zero' : ''}">${rev.text}</span></td>
+            <td>${typeTag}</td>
+            <td>
+              <div class="store-actions" onclick="event.stopPropagation()">
+                <button class="store-action-btn ${skin.visible ? '' : 'toggled-off'}" onclick="toggleVisibility('${id}', this)" title="${skin.visible ? 'Showing in store — click to hide' : 'Hidden from store — click to show'}">
+                  ${skin.visible
+                    ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
+                    : '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
+                  }
+                </button>
+                <button class="store-action-btn" onclick="openDrawer('${id}')" title="Edit">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                </button>
+                <button class="store-action-btn delete" onclick="removeSkin('${id}')" title="${skin.free ? 'Cannot remove free skins' : sold > 0 ? 'Cannot delete — has purchases' : 'Delete'}" ${skin.free || sold > 0 ? 'disabled' : ''}>
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+              </div>
+            </td>
+            <td onclick="event.stopPropagation()">
+              <label class="store-inline-toggle" title="${isOnSale ? 'On sale — click to take off sale' : 'Off sale — click to put on sale'}${skin.contractAddress && skin.deployStatus === 'deployed' ? ' (will ' + (isOnSale ? 'pause' : 'unpause') + ' NFT contract)' : ''}">
+                <input type="checkbox" ${isOnSale ? 'checked' : ''} onchange="toggleOnSale('${id}', this)">
+                <span class="store-inline-toggle-label ${saleClass}">${saleText}</span>
+              </label>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // ===== Sorting =====
+    document.querySelectorAll('.store-table th.sortable').forEach(th => {
+      th.addEventListener('click', () => {
+        const field = th.dataset.sort;
+        if (sortField === field) {
+          sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          sortField = field;
+          sortDir = 'asc';
+        }
+        document.querySelectorAll('.store-table th.sortable').forEach(h => {
+          h.classList.remove('sorted');
+          h.querySelector('.sort-icon').textContent = '↕';
+        });
+        th.classList.add('sorted');
+        th.querySelector('.sort-icon').textContent = sortDir === 'asc' ? '↑' : '↓';
+        renderTable();
+      });
+    });
+
+    // ===== Toggle Visibility (eye button in Actions) =====
+    // Controls whether the skin appears in the public store UI.
+    async function toggleVisibility(id, btnEl) {
+      const skin = skins[id];
+      if (!skin) return;
+      const newVisible = !skin.visible;
+      if (btnEl) btnEl.disabled = true;
+      try {
+        const r = await fetch(`/admin/api/store/skins/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ visible: newVisible })
+        });
+        const data = await r.json();
+        if (data.success) {
+          await loadSkins();
+          showToast(`${skin.name} is now ${newVisible ? 'visible' : 'hidden'}`);
+        } else {
+          showToast(data.error || 'Failed to update', 'error');
+        }
+      } catch (err) {
+        showToast('Failed to update visibility', 'error');
+        console.error('Toggle visibility failed:', err);
+      } finally {
+        if (btnEl) btnEl.disabled = false;
+      }
+    }
+
+    // ===== Toggle On Sale (quick action) =====
+    // Controls whether agents can purchase via API.
+    // For NFT skins with deployed contracts, this also pauses/unpauses the on-chain contract.
+    async function toggleOnSale(id, checkboxEl) {
+      const skin = skins[id];
+      if (!skin) return;
+      const currentOnSale = skin.onSale !== undefined ? skin.onSale : skin.visible;
+      const newOnSale = !currentOnSale;
+      const hasContract = skin.contractAddress && skin.deployStatus === 'deployed';
+
+      // Disable the checkbox while the request is in flight
+      if (checkboxEl) checkboxEl.disabled = true;
+
+      // Show "pausing/unpausing" label for NFT skins (contract call takes time)
+      const labelEl = checkboxEl?.parentElement?.querySelector('.store-inline-toggle-label');
+      if (hasContract && labelEl) {
+        labelEl.textContent = newOnSale ? 'Unpausing…' : 'Pausing…';
+        labelEl.className = 'store-inline-toggle-label pausing';
+      } else if (labelEl) {
+        labelEl.textContent = newOnSale ? 'Enabling…' : 'Disabling…';
+        labelEl.className = 'store-inline-toggle-label pausing';
+      }
+
+      try {
+        let r;
+        if (hasContract) {
+          // NFT skin — pause/unpause the contract (server also sets onSale + contractPaused)
+          const action = newOnSale ? 'unpause' : 'pause';
+          r = await fetch(`/admin/api/store/skins/${id}/contract/${action}`, { method: 'POST' });
+        } else {
+          // Regular skin — just toggle onSale
+          r = await fetch(`/admin/api/store/skins/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ onSale: newOnSale })
+          });
+        }
+        const data = await r.json();
+        if (data.success) {
+          await loadSkins();
+          const verb = hasContract
+            ? (newOnSale ? 'unpaused & on sale' : 'paused & off sale')
+            : (newOnSale ? 'on sale' : 'off sale');
+          showToast(`${skin.name} is now ${verb}`);
+        } else {
+          // Revert checkbox state on failure
+          if (checkboxEl) checkboxEl.checked = currentOnSale;
+          showToast(data.error || 'Failed to update', 'error');
+        }
+      } catch (err) {
+        // Revert checkbox state on error
+        if (checkboxEl) checkboxEl.checked = currentOnSale;
+        showToast(hasContract ? 'Contract call failed' : 'Failed to update', 'error');
+        console.error('Toggle on-sale failed:', err);
+      } finally {
+        if (checkboxEl) checkboxEl.disabled = false;
+      }
+    }
+
+    // ===== Editor Drawer =====
+    function openDrawer(id) {
+      selectedSkinId = id;
+      renderTable();
+      renderDrawer(id);
+      document.getElementById('store-drawer').classList.add('open');
+      document.getElementById('drawer-overlay').classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeDrawer() {
+      selectedSkinId = null;
+      document.getElementById('store-drawer').classList.remove('open');
+      document.getElementById('drawer-overlay').classList.remove('open');
+      document.body.style.overflow = '';
+      renderTable();
+    }
+
+    document.getElementById('drawer-close').addEventListener('click', closeDrawer);
+    document.getElementById('drawer-overlay').addEventListener('click', closeDrawer);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && selectedSkinId) closeDrawer();
+    });
+
+    function renderDrawer(id) {
+      const skin = skins[id];
+      if (!skin) return;
+
+      const isFree = !!skin.free;
+      const supply = skin.supply !== undefined ? skin.supply : -1;
+      const sold = skin.sold || 0;
+      const variant = skin.variant || 'red';
+      const cachedSnap = snapshotCache[variant];
+      const rev = formatRevenue(skin);
+
+      // Variant display name
+      const variantDisplay = VARIANTS[variant]?.label || variant;
+
+      // Product type info (locked after creation)
+      const parsed = parseProductId(skin.product || '');
+      const productTypeLabel = parsed.type === 'anim' ? 'Animation' : 'Skin';
+      const animLabel = parsed.type === 'anim' && parsed.animId
+        ? (VARIANTS[parsed.variant]?.anims?.find(a => a.id === parsed.animId)?.label || parsed.animId)
+        : '';
+
+      document.getElementById('drawer-id').textContent = `${productTypeLabel} · ${variantDisplay}${animLabel ? ' · ' + animLabel : ''}`;
+
+      // Can delete only if not free and no sales
+      const canDelete = !isFree && sold === 0;
+      const deleteTitle = isFree ? 'Cannot remove free skins' : sold > 0 ? 'Cannot delete — has existing purchases' : 'Remove';
+
+      // Supply display
+      const supplyDisplay = supply === -1 ? 'Unlimited' : String(supply);
+
+      const previewImg = cachedSnap
+        ? `<img src="${cachedSnap}" alt="${variant}">`
+        : `<span class="preview-loading">Loading preview...</span>`;
+
+      // Build tab bar
+      const hasContract = skin.currency === 'MON' && !isFree;
+      document.getElementById('drawer-tabs').innerHTML = `
+        <button class="store-drawer-tab active" data-tab="details">Details</button>
+        ${hasContract ? '<button class="store-drawer-tab" data-tab="contract">Contract</button>' : ''}
+        <button class="store-drawer-tab" data-tab="orders">Orders <span class="tab-count" id="orders-tab-count">${sold}</span></button>
+      `;
+
+      document.getElementById('drawer-body').innerHTML = `
+        <!-- Details Tab -->
+        <div class="store-drawer-tab-panel active" id="panel-details">
+          <div class="store-product-preview" id="drawer-preview">${previewImg}</div>
+
+          <div class="store-field">
+            <label>Name</label>
+            <input type="text" id="edit-name" value="${escAttr(skin.name)}">
+          </div>
+
+          <div class="store-field">
+            <label>Description</label>
+            <textarea id="edit-desc">${esc(skin.description || '')}</textarea>
+          </div>
+
+          <input type="hidden" id="edit-variant" value="${escAttr(variant)}">
+
+          <div class="store-field">
+            <label>Price</label>
+            <div class="store-price-row">
+              <input type="text" id="edit-price" value="${escAttr(skin.priceDisplay || skin.price)}" ${isFree ? 'disabled' : ''} placeholder="${isFree ? 'FREE' : '0'}">
+              <select id="edit-currency" ${isFree ? 'disabled' : ''}>
+                <option value="USDC" ${skin.currency === 'USDC' ? 'selected' : ''}>USDC</option>
+                <option value="MON" ${skin.currency === 'MON' ? 'selected' : ''}>MON</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="store-field">
+            <label>Supply</label>
+            <div class="store-supply-row">
+              <input type="number" id="edit-supply" value="${supply}" min="-1" step="1" ${isFree ? 'disabled' : ''} placeholder="Unlimited" title="-1 = unlimited">
+              <div class="store-sold-display">${sold} sold</div>
+            </div>
+          </div>
+
+          <div class="store-toggles">
+            <label class="store-toggle">
+              <input type="checkbox" id="edit-visible" ${skin.visible ? 'checked' : ''}>
+              <span class="store-toggle-label">Visible in store</span>
+            </label>
+            <label class="store-toggle">
+              <input type="checkbox" id="edit-on-sale" ${(skin.onSale !== undefined ? skin.onSale : skin.visible) ? 'checked' : ''}>
+              <span class="store-toggle-label">On sale (purchasable via API)</span>
+            </label>
+            <label class="store-toggle">
+              <input type="checkbox" id="edit-featured" ${skin.featured ? 'checked' : ''}>
+              <span class="store-toggle-label">Featured (shows banner on card)</span>
+            </label>
+            <label class="store-toggle">
+              <input type="checkbox" id="edit-requires-verification" ${skin.requiresVerification ? 'checked' : ''} ${isFree ? 'disabled' : ''}>
+              <span class="store-toggle-label">Requires x402 verification</span>
+            </label>
+            <label class="store-toggle">
+              <input type="checkbox" id="edit-transferable" ${(skin.transferable !== undefined ? skin.transferable : true) ? 'checked' : ''} ${isFree || skin.sold > 0 ? 'disabled' : ''}>
+              <span class="store-toggle-label">Transferable (can resell NFT)${skin.sold > 0 ? ' — locked after mint' : ''}</span>
+            </label>
+          </div>
+
+          <div class="store-status" id="edit-status"></div>
+        </div>
+
+        <!-- Contract Tab (MON skins) -->
+        ${hasContract ? `
+        <div class="store-drawer-tab-panel" id="panel-contract">
+          <div id="contract-info" class="contract-loading">Loading contract info...</div>
+        </div>
+        ` : ''}
+
+        <!-- Orders Tab -->
+        <div class="store-drawer-tab-panel" id="panel-orders">
+          <div class="store-orders-summary" id="orders-summary">
+            <div class="store-orders-stat">
+              <span class="store-orders-stat-value" id="orders-total-count">${sold}</span>
+              <span class="store-orders-stat-label">Orders</span>
+            </div>
+            <div class="store-orders-stat">
+              <span class="store-orders-stat-value" style="color:${rev.zero ? 'var(--color-text-muted)' : 'var(--color-success)'}">${rev.text}</span>
+              <span class="store-orders-stat-label">Revenue</span>
+            </div>
+          </div>
+          <div id="orders-list" class="store-orders-empty">Loading...</div>
+        </div>
+      `;
+
+      // Tab switching
+      document.querySelectorAll('#drawer-tabs .store-drawer-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('#drawer-tabs .store-drawer-tab').forEach(t => t.classList.remove('active'));
+          document.querySelectorAll('.store-drawer-tab-panel').forEach(p => p.classList.remove('active'));
+          tab.classList.add('active');
+          const panel = document.getElementById('panel-' + tab.dataset.tab);
+          if (panel) panel.classList.add('active');
+        });
+      });
+
+      document.getElementById('drawer-footer').innerHTML = `
+        <button class="store-btn-save" onclick="saveSkin('${id}')">Save Changes</button>
+        <button class="store-btn-remove" onclick="removeSkin('${id}')" ${canDelete ? '' : 'disabled'} title="${escAttr(deleteTitle)}">Delete</button>
+      `;
+
+      // Load order history async
+      loadOrders(id);
+      // Load contract info for MON skins
+      if (hasContract) loadContractInfo(id, skin);
+    }
+
+    // ===== Load Orders for Drawer =====
+    async function loadOrders(skinId) {
+      const listEl = document.getElementById('orders-list');
+      if (!listEl) return;
+
+      try {
+        const r = await fetch('/admin/api/store/skins/' + encodeURIComponent(skinId) + '/orders');
+        const data = await r.json();
+        if (!data.success) {
+          listEl.textContent = 'Failed to load';
+          return;
+        }
+
+        // Update tab count badge
+        const tabCount = document.getElementById('orders-tab-count');
+        if (tabCount) tabCount.textContent = data.total;
+
+        // Update summary
+        const totalCount = document.getElementById('orders-total-count');
+        if (totalCount) totalCount.textContent = data.total;
+
+        if (data.orders.length === 0) {
+          listEl.className = 'store-orders-empty';
+          listEl.textContent = 'No orders yet';
+          return;
+        }
+
+        listEl.className = 'store-orders-list';
+        listEl.innerHTML = data.orders.map(o => {
+          const time = new Date(o.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+          const txShort = o.txHash && o.txHash.startsWith('0x')
+            ? o.txHash.slice(0, 6) + '…' + o.txHash.slice(-4)
+            : '';
+          const txLink = txShort
+            ? `<a class="store-order-tx" href="https://monadexplorer.com/tx/${esc(o.txHash)}" target="_blank" rel="noopener">${txShort}</a>`
+            : '<span class="store-order-tx">—</span>';
+          return `
+            <div class="store-order-row">
+              <div class="store-order-main">
+                <span class="store-order-agent">${esc(o.agent)}</span>
+                <span class="store-order-time">${esc(time)}</span>
+              </div>
+              <span class="store-order-price">${esc(o.priceDisplay || o.price)}</span>
+              ${txLink}
+            </div>
+          `;
+        }).join('');
+      } catch (err) {
+        listEl.className = 'store-orders-empty';
+        listEl.textContent = 'Failed to load orders';
+      }
+    }
+
+    // ===== Load Contract Info =====
+    async function loadContractInfo(skinId, skin) {
+      const el = document.getElementById('contract-info');
+      if (!el) return;
+
+      const deployStatus = skin.deployStatus || 'none';
+
+      if (deployStatus === 'none' || (!skin.contractAddress && deployStatus !== 'pending' && deployStatus !== 'failed')) {
+        el.innerHTML = `
+          <div class="contract-empty">
+            <div class="contract-status-badge pending">No Contract</div>
+            <p>This MON skin needs an NFT contract. Deploy one to enable minting.</p>
+            <button class="contract-action-btn" onclick="deploySkinContract('${skinId}')" style="max-width:280px;margin:0 auto;">Deploy NFT Contract</button>
+          </div>
+          <div id="contract-action-status" class="store-status" style="margin-top:var(--space-2);"></div>
+        `;
+        return;
+      }
+
+      if (deployStatus === 'pending') {
+        el.innerHTML = `<div class="contract-empty"><div class="contract-status-badge pending">Deploying...</div><p>Contract deployment in progress. Refresh to check status.</p></div>`;
+        return;
+      }
+
+      if (deployStatus === 'failed') {
+        el.innerHTML = `
+          <div class="contract-empty">
+            <div class="contract-status-badge failed">Deploy Failed</div>
+            <p style="color:var(--color-error);">${esc(skin.deployError || 'Unknown error')}</p>
+            <button class="contract-action-btn" onclick="deploySkinContract('${skinId}')" style="max-width:280px;margin:0 auto;">Retry Deploy</button>
+          </div>
+          <div id="contract-action-status" class="store-status" style="margin-top:var(--space-2);"></div>
+        `;
+        return;
+      }
+
+      // Contract is deployed — fetch on-chain data
+      try {
+        const r = await fetch(`/admin/api/store/skins/${encodeURIComponent(skinId)}/contract`);
+        const data = await r.json();
+        if (!data.success || !data.contract) {
+          el.innerHTML = '<p style="color:var(--color-error)">Failed to load contract data</p>';
+          return;
+        }
+        const c = data.contract;
+        const shortAddr = c.address.slice(0, 6) + '…' + c.address.slice(-4);
+        const mintPriceMon = parseFloat(c.mintPrice) / 1e18;
+        const priceDisplay = mintPriceMon % 1 === 0 ? mintPriceMon.toFixed(0) : mintPriceMon.toFixed(2);
+        const bal = parseFloat(c.balance);
+        const balDisplay = bal % 1 === 0 ? bal.toFixed(0) : bal.toFixed(2);
+
+        el.innerHTML = `
+          <div class="contract-header">
+            <div class="contract-status-badge deployed">Deployed</div>
+            <div class="contract-address"><a href="${esc(c.explorer)}" target="_blank" rel="noopener">${shortAddr} ↗</a></div>
+          </div>
+
+          <div class="contract-stats-row">
+            <div class="contract-stat">
+              <div class="contract-stat-label">Minted</div>
+              <div class="contract-stat-value">${c.totalMinted}</div>
+              <div class="contract-stat-sub">of ${c.maxSupply}</div>
+            </div>
+            <div class="contract-stat">
+              <div class="contract-stat-label">Price</div>
+              <div class="contract-stat-value">${priceDisplay}</div>
+              <div class="contract-stat-sub">MON</div>
+            </div>
+            <div class="contract-stat">
+              <div class="contract-stat-label">Balance</div>
+              <div class="contract-stat-value">${balDisplay}</div>
+              <div class="contract-stat-sub">MON${monPriceUsd > 0 && parseFloat(c.balance) > 0 ? ` · ~$${(parseFloat(c.balance) * monPriceUsd).toFixed(2)}` : ''}</div>
+            </div>
+          </div>
+
+          <div class="contract-line-items">
+            <div class="contract-line-item">
+              <span class="contract-line-label">Status</span>
+              <span class="contract-line-value" style="color:${c.paused ? 'var(--color-error)' : 'var(--color-success)'}">${c.paused ? 'Paused' : 'Active'}</span>
+            </div>
+            <div class="contract-line-item">
+              <span class="contract-line-label">Transfers</span>
+              ${c.transferable !== null ? `
+                <label class="contract-line-toggle">
+                  <input type="checkbox" id="contract-transferable-toggle" ${c.transferable ? 'checked' : ''} ${c.totalMinted > 0 ? 'disabled' : ''}
+                    onchange="toggleTransferable('${skinId}', ${c.transferable})">
+                  <span class="contract-toggle-track"></span>
+                  <span class="contract-line-value" id="contract-transferable-label" style="color:${c.transferable ? 'var(--color-success)' : 'var(--color-warning)'}">${c.transferable ? 'Enabled' : 'Soulbound'}</span>
+                  ${c.totalMinted > 0 ? '<span style="color:var(--color-text-muted);font-size:var(--text-xs);margin-left:var(--space-2);">locked</span>' : ''}
+                </label>
+              ` : `<span class="contract-line-value" style="color:var(--color-text-muted)">N/A</span>`}
+            </div>
+          </div>
+
+          <div class="contract-actions">
+            <button class="contract-action-btn" id="withdraw-btn" onclick="withdrawContract('${skinId}')" ${parseFloat(c.balance) === 0 ? 'disabled' : ''}>
+              Withdraw${parseFloat(c.balance) > 0 ? ' ' + balDisplay + ' MON' : ''}
+            </button>
+          </div>
+
+          <div id="contract-action-status" class="store-status" style="margin-top:var(--space-3);"></div>
+        `;
+      } catch (err) {
+        el.innerHTML = `<p style="color:var(--color-error)">Error: ${esc(err.message)}</p>`;
+      }
+    }
+
+    // Deploy contract for a skin
+    async function deploySkinContract(skinId) {
+      const statusEl = document.getElementById('contract-action-status');
+      if (statusEl) { statusEl.textContent = 'Deploying contract...'; statusEl.className = 'store-status'; }
+      try {
+        const r = await fetch(`/admin/api/store/skins/${encodeURIComponent(skinId)}/deploy`, { method: 'POST' });
+        const data = await r.json();
+        if (data.success) {
+          showToast('Contract deployed: ' + (data.contractAddress || '').slice(0, 10) + '…');
+          await loadSkins();
+          // Reopen drawer with updated data
+          if (skins[skinId]) openDrawer(skinId);
+        } else {
+          if (statusEl) { statusEl.textContent = data.error || 'Deploy failed'; statusEl.className = 'store-status error'; }
+        }
+      } catch (err) {
+        if (statusEl) { statusEl.textContent = err.message; statusEl.className = 'store-status error'; }
+      }
+    }
+    window.deploySkinContract = deploySkinContract;
+
+    // Toggle pause/unpause
+    async function togglePause(skinId, currentlyPaused) {
+      const statusEl = document.getElementById('contract-action-status');
+      const action = currentlyPaused ? 'unpause' : 'pause';
+      if (statusEl) { statusEl.textContent = `${action === 'pause' ? 'Stopping sale' : 'Resuming sale'}...`; statusEl.className = 'store-status'; }
+      try {
+        const r = await fetch(`/admin/api/store/skins/${encodeURIComponent(skinId)}/contract/${action}`, { method: 'POST' });
+        const data = await r.json();
+        if (data.success) {
+          showToast(action === 'pause' ? 'Sale stopped — hidden from store' : 'Sale resumed — visible in store');
+          await loadSkins();
+          if (skins[skinId]) openDrawer(skinId);
+        } else {
+          if (statusEl) { statusEl.textContent = data.error; statusEl.className = 'store-status error'; }
+        }
+      } catch (err) {
+        if (statusEl) { statusEl.textContent = err.message; statusEl.className = 'store-status error'; }
+      }
+    }
+    window.togglePause = togglePause;
+
+    // Withdraw contract balance to treasury
+    async function withdrawContract(skinId) {
+      const btn = document.getElementById('withdraw-btn');
+      const statusEl = document.getElementById('contract-action-status');
+      if (btn) {
+        btn.disabled = true;
+        btn.dataset.origText = btn.textContent;
+        btn.innerHTML = '<span class="btn-spinner"></span>Withdrawing…';
+      }
+      try {
+        const r = await fetch(`/admin/api/store/skins/${encodeURIComponent(skinId)}/contract/withdraw`, { method: 'POST' });
+        const data = await r.json();
+        if (data.success) {
+          showToast(`Withdrew ${data.withdrawn} MON to treasury`);
+          await loadSkins();
+          if (skins[skinId]) openDrawer(skinId);
+        } else {
+          if (btn) { btn.disabled = false; btn.textContent = btn.dataset.origText; }
+          if (statusEl) { statusEl.textContent = data.error; statusEl.className = 'store-status error'; }
+        }
+      } catch (err) {
+        if (btn) { btn.disabled = false; btn.textContent = btn.dataset.origText; }
+        if (statusEl) { statusEl.textContent = err.message; statusEl.className = 'store-status error'; }
+      }
+    }
+    window.withdrawContract = withdrawContract;
+
+    // Toggle transferable / soulbound
+    async function toggleTransferable(skinId, currentlyTransferable) {
+      const toggle = document.getElementById('contract-transferable-toggle');
+      const label = document.getElementById('contract-transferable-label');
+      const statusEl = document.getElementById('contract-action-status');
+      const newTransferable = !currentlyTransferable;
+
+      // Inline loading state
+      if (toggle) toggle.disabled = true;
+      if (label) { label.textContent = newTransferable ? 'Enabling...' : 'Disabling...'; label.style.color = 'var(--color-text-muted)'; }
+
+      try {
+        const r = await fetch(`/admin/api/store/skins/${encodeURIComponent(skinId)}/contract/set-transferable`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transferable: newTransferable })
+        });
+        const data = await r.json();
+        if (data.success) {
+          showToast(newTransferable ? 'Transfers enabled' : 'Made soulbound');
+          // Update inline — no drawer reload
+          if (label) {
+            label.textContent = newTransferable ? 'Enabled' : 'Soulbound';
+            label.style.color = newTransferable ? 'var(--color-success)' : 'var(--color-warning)';
+          }
+          if (toggle) {
+            toggle.checked = newTransferable;
+            toggle.disabled = false;
+            toggle.setAttribute('onchange', `toggleTransferable('${skinId}', ${newTransferable})`);
+          }
+          await loadSkins(); // Refresh background data
+        } else {
+          // Revert toggle
+          if (toggle) { toggle.checked = currentlyTransferable; toggle.disabled = false; }
+          if (label) {
+            label.textContent = currentlyTransferable ? 'Enabled' : 'Soulbound';
+            label.style.color = currentlyTransferable ? 'var(--color-success)' : 'var(--color-warning)';
+          }
+          if (statusEl) { statusEl.textContent = data.error; statusEl.className = 'store-status error'; }
+        }
+      } catch (err) {
+        // Revert toggle
+        if (toggle) { toggle.checked = currentlyTransferable; toggle.disabled = false; }
+        if (label) {
+          label.textContent = currentlyTransferable ? 'Enabled' : 'Soulbound';
+          label.style.color = currentlyTransferable ? 'var(--color-success)' : 'var(--color-warning)';
+        }
+        if (statusEl) { statusEl.textContent = err.message; statusEl.className = 'store-status error'; }
+      }
+    }
+    window.toggleTransferable = toggleTransferable;
+
+    // ===== Save Skin =====
+    async function saveSkin(id) {
+      const statusEl = document.getElementById('edit-status');
+      const btn = document.querySelector('.store-btn-save');
+      const name = document.getElementById('edit-name').value.trim();
+      const description = document.getElementById('edit-desc').value.trim();
+      const variant = document.getElementById('edit-variant').value;
+      const currency = document.getElementById('edit-currency').value;
+      const visible = document.getElementById('edit-visible').checked;
+      const featured = document.getElementById('edit-featured').checked;
+      const onSale = document.getElementById('edit-on-sale').checked;
+      const requiresVerification = document.getElementById('edit-requires-verification').checked;
+      const transferable = document.getElementById('edit-transferable').checked;
+      const supplyVal = parseInt(document.getElementById('edit-supply').value, 10);
+      const supply = isNaN(supplyVal) ? -1 : supplyVal;
+      // Product binding is locked after creation — keep existing value
+      const product = skins[id]?.product || '';
+
+      const priceDisplayRaw = document.getElementById('edit-price').value.trim();
+      let priceBaseUnits = '0';
+      let priceDisplay = priceDisplayRaw;
+
+      if (skins[id] && !skins[id].free) {
+        const parsed = parsePriceInput(priceDisplayRaw, currency);
+        priceBaseUnits = parsed.baseUnits;
+        priceDisplay = parsed.display;
+      }
+
+      // Loading state
+      if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+      try {
+        const r = await fetch(`/admin/api/store/skins/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, description, variant, price: priceBaseUnits, currency, priceDisplay, visible, featured, onSale, requiresVerification, transferable, supply, product })
+        });
+        const data = await r.json();
+        if (data.success) {
+          statusEl.textContent = '';
+          await loadSkins();
+          closeDrawer();
+          showToast(`${name || id} saved`);
+        } else {
+          statusEl.textContent = data.error || 'Failed to save';
+          statusEl.className = 'store-status error';
+          showToast(data.error || 'Failed to save', 'error');
+          if (btn) { btn.disabled = false; btn.textContent = 'Save Changes'; }
+        }
+      } catch (err) {
+        statusEl.textContent = err.message;
+        statusEl.className = 'store-status error';
+        showToast('Failed to save', 'error');
+        if (btn) { btn.disabled = false; btn.textContent = 'Save Changes'; }
+      }
+
+      setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
+    }
+
+    // ===== Remove Skin =====
+    function removeSkin(id) {
+      const skin = skins[id];
+      if (!skin) return;
+      const sold = skin.sold || 0;
+      if (sold > 0) {
+        showToast('Cannot delete — has existing purchases', 'error');
+        return;
+      }
+      // Show confirmation modal
+      const modal = document.getElementById('delete-modal');
+      document.getElementById('delete-modal-name').textContent = skin.name || id;
+      modal._deleteId = id;
+      modal.style.display = '';
+    }
+
+    function closeDeleteModal() {
+      document.getElementById('delete-modal').style.display = 'none';
+    }
+
+    async function confirmDelete() {
+      const modal = document.getElementById('delete-modal');
+      const id = modal._deleteId;
+      if (!id) return;
+      closeDeleteModal();
+
+      try {
+        const r = await fetch(`/admin/api/store/skins/${id}`, { method: 'DELETE' });
+        const data = await r.json();
+        if (data.success) {
+          const removedName = skins[id]?.name || id;
+          if (selectedSkinId === id) closeDrawer();
+          selectedSkinId = null;
+          await loadSkins();
+          showToast(`${removedName} removed`);
+        } else {
+          showToast(data.error || 'Failed to remove', 'error');
+        }
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    // Wire up delete modal handlers
+    document.getElementById('delete-modal-close').addEventListener('click', closeDeleteModal);
+    document.getElementById('delete-modal-cancel').addEventListener('click', closeDeleteModal);
+    document.getElementById('delete-modal-confirm').addEventListener('click', confirmDelete);
+    document.getElementById('delete-modal').addEventListener('click', (e) => { if (e.target.id === 'delete-modal') closeDeleteModal(); });
+    // Expose for inline onclick
+    window.removeSkin = removeSkin;
+
+    // ===== Add Skin Modal =====
+    const addModal = document.getElementById('add-modal');
+    const newTypeEl = document.getElementById('new-type');
+    const newVariantField = document.getElementById('new-variant-field');
+    const newAnimField = document.getElementById('new-anim-field');
+    const newVariantEl = document.getElementById('new-variant');
+    const newAnimEl = document.getElementById('new-anim');
+
+    // Populate variant select from VARIANTS data
+    function populateVariantSelect() {
+      newVariantEl.innerHTML = Object.entries(VARIANTS).map(([key, v]) =>
+        `<option value="${key}">${v.label}</option>`
+      ).join('');
+    }
+    populateVariantSelect();
+
+    // Populate animation select for the chosen variant
+    function populateAnimSelect(variant) {
+      const v = VARIANTS[variant];
+      const anims = v ? v.anims : [];
+      newAnimEl.innerHTML = '<option value="">Select animation...</option>' +
+        anims.map(a => `<option value="${a.id}">${a.label}</option>`).join('');
+    }
+
+    // Auto-populate name and description from selection
+    // Uses storeName/storeDesc for display names (e.g. "Classic Red", "Golden Shell")
+    // Falls back to label/desc if storeName not set
+    function autoPopulateFromSelection() {
+      const type = newTypeEl.value;
+      const variant = newVariantEl.value;
+      const v = VARIANTS[variant];
+      if (!v) return;
+
+      const displayName = v.storeName || v.label;
+      const displayDesc = v.storeDesc || '';
+
+      const nameEl = document.getElementById('new-name');
+      if (type === 'skin') {
+        nameEl.value = displayName;
+        document.getElementById('new-desc').value = displayDesc;
+      } else if (type === 'animation') {
+        const animId = newAnimEl.value;
+        const anim = v.anims.find(a => a.id === animId);
+        if (anim) {
+          nameEl.value = `${anim.label} — ${displayName}`;
+          document.getElementById('new-desc').value = `${anim.label} dance animation for the ${displayName}.`;
+        } else {
+          nameEl.value = '';
+        }
+      }
+    }
+
+    // Build auto-generated name from selection
+    function autoName() {
+      const type = newTypeEl.value;
+      const variant = newVariantEl.value;
+      const v = VARIANTS[variant];
+      if (!v) return '';
+      const displayName = v.storeName || v.label;
+      if (type === 'skin') return displayName;
+      const animId = newAnimEl.value;
+      const anim = v.anims.find(a => a.id === animId);
+      return anim ? `${anim.label} — ${displayName}` : '';
+    }
+
+    // Build auto-generated ID from selection
+    function autoId() {
+      const type = newTypeEl.value;
+      const variant = newVariantEl.value;
+      let base;
+      if (type === 'skin') {
+        base = `skin:${variant}`;
+      } else {
+        const animId = newAnimEl.value;
+        if (!animId) return '';
+        base = `anim:${variant}:${animId}`;
+      }
+      // If base ID already exists, append -2, -3, etc.
+      if (!skins[base]) return base;
+      let n = 2;
+      while (skins[`${base}-${n}`]) n++;
+      return `${base}-${n}`;
+    }
+
+    // Toggle fields based on type selection
+    newTypeEl.addEventListener('change', () => {
+      const isSkin = newTypeEl.value === 'skin';
+      newVariantField.style.display = '';
+      newAnimField.style.display = isSkin ? 'none' : '';
+      newVariantField.querySelector('label').textContent = isSkin ? 'Skin' : 'Variant';
+      if (!isSkin) {
+        populateAnimSelect(newVariantEl.value);
+      }
+      autoPopulateFromSelection();
+    });
+
+    // When variant changes, update desc + animation list
+    newVariantEl.addEventListener('change', () => {
+      if (newTypeEl.value === 'animation') {
+        populateAnimSelect(newVariantEl.value);
+      }
+      autoPopulateFromSelection();
+    });
+
+    // When animation changes, update desc
+    newAnimEl.addEventListener('change', autoPopulateFromSelection);
+
+    document.getElementById('add-skin-btn').addEventListener('click', () => {
+      addModal.style.display = '';
+      newTypeEl.value = 'skin';
+      newAnimField.style.display = 'none';
+      newVariantField.style.display = '';
+      newVariantField.querySelector('label').textContent = 'Skin';
+      populateVariantSelect();
+      newVariantEl.value = 'red';
+      document.getElementById('new-name').value = VARIANTS.red.storeName || VARIANTS.red.label;
+      document.getElementById('new-desc').value = VARIANTS.red.storeDesc || '';
+      document.getElementById('new-price').value = '0';
+      document.getElementById('new-currency').value = 'USDC';
+      document.getElementById('new-supply').value = '1';
+      document.getElementById('new-requires-verification').checked = false;
+      document.getElementById('new-transferable').checked = true;
+      document.getElementById('add-modal-error').textContent = '';
+      document.getElementById('new-nft-note').style.display = 'none';
+    });
+
+    // Show NFT deploy note when MON is selected with non-zero price
+    function updateNFTNote() {
+      const currency = document.getElementById('new-currency').value;
+      const price = document.getElementById('new-price').value.trim();
+      const note = document.getElementById('new-nft-note');
+      if (note) note.style.display = (currency === 'MON' && price && price !== '0') ? 'block' : 'none';
+    }
+    document.getElementById('new-currency').addEventListener('change', updateNFTNote);
+    document.getElementById('new-price').addEventListener('input', updateNFTNote);
+
+    document.getElementById('add-modal-close').addEventListener('click', closeAddModal);
+    document.getElementById('add-modal-cancel').addEventListener('click', closeAddModal);
+    // No backdrop click-to-close — modal takes time to fill out
+
+    function closeAddModal() {
+      addModal.style.display = 'none';
+      // Reset button state in case it was left loading
+      const btn = document.getElementById('add-modal-confirm');
+      if (btn) { btn.disabled = false; btn.textContent = 'Create'; }
+    }
+
+    document.getElementById('add-modal-confirm').addEventListener('click', async () => {
+      const errEl = document.getElementById('add-modal-error');
+      const btn = document.getElementById('add-modal-confirm');
+      const type = document.getElementById('new-type').value;
+      const variant = newVariantEl.value;
+      const name = document.getElementById('new-name').value.trim();
+      const description = document.getElementById('new-desc').value.trim();
+      const currency = document.getElementById('new-currency').value;
+      const priceRaw = document.getElementById('new-price').value.trim();
+      const supplyVal = parseInt(document.getElementById('new-supply').value, 10);
+      const supply = isNaN(supplyVal) ? -1 : supplyVal;
+      const requiresVerification = document.getElementById('new-requires-verification').checked;
+      const transferable = document.getElementById('new-transferable').checked;
+      const featured = document.getElementById('new-featured').checked;
+
+      // Auto-generate ID from selection (hidden SKU)
+      const id = autoId();
+
+      if (!id) {
+        errEl.textContent = type === 'animation' ? 'Select an animation' : 'Select a variant';
+        return;
+      }
+
+      if (!name) {
+        errEl.textContent = 'Enter a display name';
+        return;
+      }
+
+      // Build product binding string
+      const product = id; // product binding matches the ID (skin:red, anim:blue:dance-boom)
+
+      const parsed = parsePriceInput(priceRaw, currency);
+
+      // Loading state
+      errEl.textContent = '';
+      btn.disabled = true;
+      btn.textContent = 'Creating…';
+
+      try {
+        const r = await fetch('/admin/api/store/skins', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, name, variant, description, currency, price: parsed.baseUnits, priceDisplay: parsed.display, visible: false, featured, type, product, supply, requiresVerification, transferable })
+        });
+        const data = await r.json();
+        if (data.success) {
+          closeAddModal();
+          await loadSkins();
+          openDrawer(id);
+          showToast(`${name} created`);
+        } else {
+          errEl.textContent = data.error || 'Failed to create';
+          btn.disabled = false;
+          btn.textContent = 'Create';
+        }
+      } catch (err) {
+        errEl.textContent = err.message;
+        btn.disabled = false;
+        btn.textContent = 'Create';
+      }
+    });
+
+    // ===== Price Helpers =====
+    function parsePriceInput(raw, currency) {
+      // Strip $ sign, currency suffix, and whitespace before parsing
+      const cleaned = (raw || '').replace(/^\$/, '').replace(/\s*(USDC|MON)\s*$/i, '').trim();
+      const num = parseFloat(cleaned);
+      if (isNaN(num) || num <= 0) {
+        return { baseUnits: '0', display: 'FREE' };
+      }
+
+      if (currency === 'USDC') {
+        const base = Math.round(num * 1e6);
+        // Strip trailing zeros: 1.00 → 1, 0.50 → 0.5
+        const display = num % 1 === 0 ? `${num} USDC` : `${parseFloat(num.toFixed(6))} USDC`;
+        return { baseUnits: String(base), display };
+      } else {
+        const parts = cleaned.split('.');
+        const whole = parts[0] || '0';
+        const frac = (parts[1] || '').padEnd(18, '0').slice(0, 18);
+        const base = whole + frac;
+        const trimmed = base.replace(/^0+/, '') || '0';
+        return { baseUnits: trimmed, display: `${num} MON` };
+      }
+    }
+
+    // ===== Escape Helpers =====
+    function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+    function escAttr(s) { return (s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;'); }
+
+    // ===== Go =====
+    init();
+    lucide.createIcons();
+  </script>
+  <script src="/admin-nav.js"></script>
+</body>
+</html>
