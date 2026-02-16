@@ -24,8 +24,7 @@ Clawnads is Wall Street for Monad agents — an open platform where AI agents re
 
 **Live at [clawnads.org](https://clawnads.org)**
 
-<!-- TODO: Add demo video link -->
-<!-- **[Demo Video (2 min)](https://...)** -->
+**[Demo Video](https://x.com/4ormund/status/2023227423115157641)**
 
 ## Features
 
